@@ -1,6 +1,179 @@
+@import url('https://fonts.googleapis.com/css2?family=EB+Garamond:ital,wght@0,400..800;1,400..800;1,14..32,100..900&family=Inter:ital,opsz,wght@0,14..32,100..900;1,14..32,100..900&display=swap');
 @import "tailwindcss";
+@custom-variant dark (&:where(.dark, .dark *));
 
 @theme {
-  --font-sans: var(--font-geist-sans), ui-sans-serif, system-ui, sans-serif,
-    "Apple Color Emoji", "Segoe UI Emoji", "Segoe UI Symbol", "Noto Color Emoji";
+  /* --- Base Variables (Light Mode Defaults) --- */
+  --background: 0 0% 100%;
+  --foreground: 222.2 84% 4.9%;
+  --card: 0 0% 100%;
+  --card-foreground: 222.2 84% 4.9%;
+  --page-bg-light: 336, 71%, 95%;
+  --popover: 0 0% 100%; /* e.g., white for popover base */
+  --popover-foreground: 222.2 84% 4.9%;
+  --primary: 221.2 83.2% 53.3%;
+  --primary-foreground: 210 40% 98%;
+  --secondary: 210 40% 96.1%;
+  --secondary-foreground: 222.2 47.4% 11.2%;
+  --muted: 210 40% 96.1%;
+  --muted-foreground: 215.4 16.3% 46.9%;
+  --accent: 210 40% 96.1%;
+  --accent-foreground: 222.2 47.4% 11.2%;
+  --destructive: 0 84.2% 60.2%;
+  --destructive-foreground: 210 40% 98%;
+  --border: 214.3 31.8% 91.4%;
+  --input: 214.3 31.8% 91.4%;
+  --ring: 221.2 83.2% 53.3%;
+  --radius: 0.5rem;
+
+  /* --- Dark Mode Variable Overrides --- */
+  /* Ensure these are OPAQUE colors (alpha = 1) */
+  --page-bg-dark: 250 57% 20%;
+  --dark-foreground: 210 40% 98%;
+  --dark-card: 222.2 84% 4.9%; /* Darker, distinct card background */
+  --dark-card-foreground: 210 40% 98%;
+  --dark-popover: 222.2 84% 4.9%; /* Darker, distinct popover background */
+  --dark-popover-foreground: 210 40% 98%;
+  --dark-background: 222.2 84% 4.9%; /* e.g., very dark blue/black */
+  --dark-primary: 217.2 91.2% 59.8%;
+  --dark-primary-foreground: 210 40% 98%;
+  --dark-secondary: 217.2 32.6% 17.5%;
+  --dark-secondary-foreground: 210 40% 98%;
+  --dark-muted: 217.2 32.6% 17.5%;
+  --dark-muted-foreground: 215 20.2% 65.1%;
+  --dark-accent: 217.2 32.6% 17.5%;
+  --dark-accent-foreground: 210 40% 98%;
+  --dark-destructive: 0 62.8% 30.6%;
+  --dark-destructive-foreground: 210 40% 98%;
+  --dark-border: 217.2 32.6% 17.5%;
+  --dark-input: 217.2 32.6% 17.5%;
+  --dark-ring: 217.2 91.2% 59.8%;
+
+  /* --- Design System Variables --- */
+  --font-serif: "EB Garamond", serif;
+  --font-sans: "Inter", sans-serif;
+  --bg-opacity-light: 0.85; /* Opacity for light mode frosted elements */
+  --bg-opacity-dark: 0.75;  /* Opacity for dark mode frosted elements */
+  --frosted-bg-base-light: 0 0% 100%; /* e.g. white for light mode */
+  --frosted-bg-base-dark: 0 0% 0%;   /* e.g. black for dark mode */
+  --frosted-opacity: 0.65; /* Opacity for the frosted effect, adjust as needed */
+  --blur-intensity: 8px;   /* Standard blur */
+  --blur-intensity-strong: 12px; /* For elements that need more blur */
+
+  /* --- Animations --- */
+  @keyframes accordion-down { from { height: 0 } to { height: var(--radix-accordion-content-height) } }
+  @keyframes accordion-up { from { height: var(--radix-accordion-content-height) } to { height: 0 } }
+  @keyframes fade-in { from { opacity: 0 } to { opacity: 1 } }
+  @keyframes slide-in-from-top { from { transform: translateY(-10px); opacity: 0; } to { transform: translateY(0); opacity: 1; } }
+  @keyframes slide-in-from-bottom { from { transform: translateY(10px); opacity: 0; } to { transform: translateY(0); opacity: 1; } }
+  @keyframes slide-in-from-left { from { transform: translateX(-10px); opacity: 0; } to { transform: translateX(0); opacity: 1; } }
+  @keyframes slide-in-from-right { from { transform: translateX(10px); opacity: 0; } to { transform: translateX(0); opacity: 1; } }
+
+  --animate-accordion-down: accordion-down 0.2s ease-out;
+  --animate-accordion-up: accordion-up 0.2s ease-out;
+  --animate-fade-in: fade-in 0.3s ease-out forwards;
+  --animate-slide-in-top: slide-in-from-top 0.3s ease-out forwards;
+  --animate-slide-in-bottom: slide-in-from-bottom 0.3s ease-out forwards;
+  --animate-slide-in-left: slide-in-from-left 0.3s ease-out forwards;
+  --animate-slide-in-right: slide-in-from-right 0.3s ease-out forwards;
+}
+
+@layer base {
+  html {
+    height: 100%;
+    font-family: var(--font-sans);
+  }
+
+  body {
+    height: 100%;
+    overflow: hidden;
+    @apply bg-gradient-to-br from-[hsl(var(--page-bg-light))] to-pink-300;
+    @apply dark:from-[hsl(var(--page-bg-dark))] dark:to-indigo-950;
+    /* Text color from main foreground variables */
+    @apply text-[hsl(var(--foreground))] dark:text-[hsl(var(--dark-foreground))];
+    @apply transition-colors duration-200 ease-in-out;
+  }
+
+  /* Apply individual transitions */
+  * {
+     @apply transition-colors duration-150 ease-out;
+  }
+  button, input, select, textarea, div, header, footer, aside, main {
+     @apply transition-colors duration-200 ease-in-out;
+     @apply transition-shadow duration-200 ease-in-out;
+     @apply transition-opacity duration-200 ease-in-out;
+  }
+  svg {
+    @apply transition-[fill,stroke] duration-200 ease-in-out;
+  }
+
+  h1, h2, h3, h4, h5, h6, .font-serif {
+    font-family: var(--font-serif);
+  }
+}
+
+/* Scrollbar Styling */
+.custom-scrollbar::-webkit-scrollbar { width: 8px; height: 8px; }
+.custom-scrollbar::-webkit-scrollbar-track { background: transparent; }
+.custom-scrollbar::-webkit-scrollbar-thumb {
+    background-color: hsl(var(--foreground) / 0.2);
+    /* Apply dark mode styling for WebKit scrollbar thumb */
+    @apply dark:bg-[hsl(var(--dark-foreground)/0.2)];
+    border-radius: 10px;
+    border: 2px solid transparent;
+    background-clip: padding-box;
+ }
+.custom-scrollbar::-webkit-scrollbar-thumb:hover {
+    background-color: hsl(var(--foreground) / 0.4);
+    /* Apply dark mode styling for WebKit scrollbar thumb on hover */
+    @apply dark:bg-[hsl(var(--dark-foreground)/0.4)];
+ }
+
+/* Firefox scrollbar - Using standard CSS for scrollbar-color */
+.custom-scrollbar {
+    scrollbar-width: thin;
+    scrollbar-color: hsl(var(--foreground) / 0.2) transparent; /* Light mode */
+}
+.dark .custom-scrollbar { /* Target .custom-scrollbar when .dark is on a parent (html) */
+    scrollbar-color: hsl(var(--dark-foreground) / 0.2) transparent; /* Dark mode */
+}
+
+.custom-scrollbar:hover {
+    scrollbar-color: hsl(var(--foreground) / 0.4) transparent; /* Light mode hover */
+}
+.dark .custom-scrollbar:hover { /* Target .custom-scrollbar:hover when .dark is on a parent */
+    scrollbar-color: hsl(var(--dark-foreground) / 0.4) transparent; /* Dark mode hover */
+}
+
+
+/* Remove default browser focus outline */
+*:focus {
+  outline: none;
+}
+/* Apply focus ring using focus-visible for accessibility */
+*:focus-visible {
+   @apply ring-2 ring-offset-2;
+   @apply ring-[hsl(var(--ring))] ring-offset-[hsl(var(--background))];
+   @apply dark:ring-[hsl(var(--dark-ring))] dark:ring-offset-[hsl(var(--dark-background))];
+}
+/* Ensure buttons and inputs also get the focus-visible style */
+button:focus-visible, input:focus-visible, select:focus-visible, textarea:focus-visible, [role="button"]:focus-visible, a:focus-visible {
+   @apply ring-2 ring-offset-2;
+   @apply ring-[hsl(var(--ring))] ring-offset-[hsl(var(--background))];
+   @apply dark:ring-[hsl(var(--dark-ring))] dark:ring-offset-[hsl(var(--dark-background))];
+}
+
+
+/* Date picker indicator styling */
+input[type="date"]::-webkit-calendar-picker-indicator {
+  cursor: pointer;
+  filter: invert(0.6) brightness(80%);
+  @apply dark:filter-[invert(0.8)_brightness(100%)];
+}
+
+
+/* Ensure Radix primitives don't override focus-visible */
+[data-radix-focus-guard]:focus {
+    outline: none !important;
+    box-shadow: none !important;
 }
