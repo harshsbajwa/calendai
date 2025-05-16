@@ -7,6 +7,7 @@ import {
   DialogContent,
   DialogHeader,
   DialogTitle,
+  DialogDescription,
 } from "~/components/ui/dialog";
 import EventForm, { type EventFormData } from "./EventForm";
 import type { UserCalendar } from "~/app/calendar/utils/utils";
@@ -15,7 +16,7 @@ interface CreateEventDialogProps {
   isOpen: boolean;
   setIsOpen: (open: boolean) => void;
   onEventCreated: () => unknown;
-  selectedDate?: Date; // Can be used to pre-fill date
+  selectedDate?: Date;
   userCalendars?: UserCalendar[];
 }
 
@@ -53,18 +54,20 @@ const CreateEventDialog: React.FC<CreateEventDialogProps> = ({
     createEventMutation.mutate(data);
   };
 
-  // Reset form error when dialog closes or opens
   useEffect(() => {
     if (!isOpen) setFormError(null);
   }, [isOpen]);
 
   return (
     <Dialog open={isOpen} onOpenChange={setIsOpen}>
-      <DialogContent className="bg-card text-card-foreground p-0 sm:max-w-lg">
+      <DialogContent className="text-card-foreground p-0 sm:max-w-lg">
         <DialogHeader className="border-border border-b px-6 pt-6 pb-3">
           <DialogTitle className="text-center font-sans text-xl font-bold">
             Create New Event
           </DialogTitle>
+          <DialogDescription className="sr-only">
+            Fill in the details below to create a new calendar event.
+          </DialogDescription>
         </DialogHeader>
         <div className="custom-scrollbar max-h-[70vh] overflow-y-auto p-6">
           <EventForm

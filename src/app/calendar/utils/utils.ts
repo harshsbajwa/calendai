@@ -21,7 +21,7 @@ export const timeGutterWidthPixels = 4.5 * 16;
 
 export const sidebarCollapsedWidth = "w-16";
 export const sidebarExpandedWidth = "md:w-64";
-export const agendaPanelExpandedWidth = "md:w-80";
+export const agendaPanelExpandedWidth = "md:w-120";
 export const agendaPanelCollapsedWidth = "w-16";
 
 export const colorOptions = [
@@ -42,19 +42,30 @@ export const getTextColorFromBg = (
   if (!bgColor) return "text-primary";
   return bgColor
     .replace("bg-", "text-")
-    .replace("-600", "-500")
-    .replace("-500", "-400");
+    .replace("-600", "-100")
+    .replace("-500", "-50");
 };
 
 export const calculateEventPositionAndHeightForDay = (
   event: CalendarEvent,
   dayOfColumn: Date,
   isMonthView = false,
-): React.CSSProperties => {
+): {
+  top: number;
+  height: number;
+  position: "absolute";
+  left: string;
+  right: string;
+  zIndex: number;
+} => {
   if (isMonthView) {
     return {
-      backgroundColor: event.color ?? "var(--primary)",
-      color: "white",
+      top: 0,
+      height: 0,
+      position: "absolute",
+      left: "0",
+      right: "0",
+      zIndex: 10,
     };
   }
 
@@ -74,7 +85,6 @@ export const calculateEventPositionAndHeightForDay = (
   );
   let endOffsetMinutes = differenceInMinutes(effectiveEndTime, columnDayStart);
 
-  // If the event ends exactly at midnight or spans across midnight into the next day shown as ending on this day
   if (
     getTime(effectiveEndTime) === getTime(columnDayEnd) ||
     (getHours(event.endTime) === 0 &&
@@ -85,13 +95,12 @@ export const calculateEventPositionAndHeightForDay = (
   }
 
   const top = (startOffsetMinutes / 60) * hourHeight;
-  // Ensure a minimum duration for visibility, e.g., 15 minutes
   const durationMinutes = Math.max(15, endOffsetMinutes - startOffsetMinutes);
-  const height = Math.max(hourHeight / 4, (durationMinutes / 60) * hourHeight); // Min height of 15min slot
+  const height = Math.max(hourHeight / 4, (durationMinutes / 60) * hourHeight);
 
   return {
-    top: `${top}px`,
-    height: `${height}px`,
+    top: top,
+    height: height,
     position: "absolute",
     left: "4px",
     right: "4px",

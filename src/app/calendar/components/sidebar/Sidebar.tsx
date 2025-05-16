@@ -16,7 +16,7 @@ interface SidebarProps {
   onEventClick: (event: CalendarEvent, target: HTMLElement) => void;
   isExpanded: boolean;
   toggleSidebar: () => void;
-  className?: string; // For the <aside> tag
+  className?: string;
   selectedCalendarIds: string[];
   setSelectedCalendarIds: (
     ids: string[] | ((prev: string[]) => string[]),
@@ -49,11 +49,13 @@ const Sidebar: React.FC<SidebarProps> = ({
   return (
     <aside
       className={cn(
-        "group relative hidden h-screen flex-shrink-0 flex-col justify-between border-r shadow-lg transition-all duration-300 ease-in-out md:flex",
-        "border-border/30 dark:border-dark-border/30 isolate bg-white/20 ring-1 ring-black/5",
+        "group relative hidden h-full flex-shrink-0 flex-col justify-between border-r shadow-lg transition-all duration-300 ease-in-out md:flex",
+        "border-white/10 dark:border-black/20",
+        "isolate bg-glass-sidebar ring-1 ring-black/5",
+        "backdrop-blur-[12px] backdrop-saturate-150",
         "rounded-tr-2xl rounded-br-2xl",
         isExpanded ? sidebarExpandedWidth : sidebarCollapsedWidth,
-        !isExpanded && isHovering && "z-40 shadow-2xl md:w-20", // Peek effect width
+        !isExpanded && isHovering && "z-40 shadow-2xl md:w-20",
         className,
       )}
       onMouseEnter={handleMouseEnter}
@@ -63,6 +65,7 @@ const Sidebar: React.FC<SidebarProps> = ({
         isExpanded={isExpanded}
         toggleSidebar={toggleSidebar}
         {...props}
+        className={cn("bg-transparent")} 
       />
     </aside>
   );

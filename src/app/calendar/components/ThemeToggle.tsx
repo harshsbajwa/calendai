@@ -26,7 +26,7 @@ const ThemeToggle: React.FC<ThemeToggleProps> = ({
   useEffect(() => setIsMounted(true), []);
 
   const toggleTheme = (e: React.MouseEvent) => {
-    e.stopPropagation(); // Prevent sidebar toggle if clicked within
+    e.stopPropagation();
     setTheme(theme === "dark" ? "light" : "dark");
   };
 

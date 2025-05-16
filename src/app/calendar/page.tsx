@@ -3,6 +3,7 @@
 import { useState, useEffect, useMemo, useRef, useCallback } from "react";
 import Image from "next/image";
 import { useSession } from "next-auth/react";
+import { useSearchParams, useRouter } from "next/navigation";
 import {
   ChevronLeft,
   ChevronRight,
@@ -10,9 +11,10 @@ import {
   User as UserIcon,
   LogOut,
   Settings,
-  Search,
+  Search as SearchIcon,
   ChevronDown,
   GripVertical,
+  XIcon,
 } from "lucide-react";
 import {
   add,
@@ -27,13 +29,14 @@ import {
   addDays,
   endOfDay,
   startOfDay,
+  setHours,
+  addMinutes,
 } from "date-fns";
 import { api } from "~/trpc/react";
 import { cn } from "~/lib/utils";
+import { useMediaQuery } from "~/app/calendar/hooks/useMediaQuery";
 
-// UI Components
 import { Button } from "~/components/ui/button";
-import { Input } from "~/components/ui/input";
 import {
   Tooltip,
   TooltipContent,
@@ -55,8 +58,6 @@ import {
   PopoverAnchor,
 } from "~/components/ui/popover";
 
-// Calendar Specific Components
-import LoadingScreen from "./components/LoadingScreen";
 import RedirectToSignIn from "./components/RedirectToSignIn";
 import ThemeToggle from "./components/ThemeToggle";
 import Sidebar from "./components/sidebar/Sidebar";
@@ -68,16 +69,17 @@ import AgendaPanel from "./components/AgendaPanel";
 import CreateEventDialog from "./components/dialogs_popovers/CreateEventDialog";
 import EventDetailPopover from "./components/dialogs_popovers/EventDetailPopover";
 import EventForm from "./components/dialogs_popovers/EventForm";
+import CommandPalette from "./components/CommandPalette";
 
-// Utils & Types
+
 import {
   agendaPanelCollapsedWidth,
-  agendaPanelExpandedWidth,
   type CalendarEvent,
+  type UserCalendar as UserCalendarType,
 } from "./utils/utils";
 import { useResizablePanels } from "./hooks/useResizablePanels";
 
-// Shared gradient button style
+
 const sharedGradientButtonStyle = cn(
   "bg-gradient-to-r dark:bg-white/5 isolate bg-white/30 ring-black/5",
   "shadow focus:outline-none",
@@ -88,6 +90,31 @@ const sharedGradientButtonStyle = cn(
   "before:bg-[length:250%_250%,100%_100%] before:bg-[position:200%_0,0_0] before:bg-no-repeat",
   "before:[transition:background-position_0s_ease] hover:before:bg-[position:-100%_0,0_0] hover:before:duration-[1500ms]",
 );
+
+const DEMO_EVENTS: CalendarEvent[] = [
+    { id: 'demo1', title: 'Team Standup', startTime: setHours(startOfDay(new Date()), 9), endTime: addMinutes(setHours(startOfDay(new Date()), 9), 30), color: 'bg-blue-600', userId: 'demo', createdAt: new Date(), updatedAt: new Date(), description: 'Daily team sync meeting.', location: 'Zoom', attendees: ['Alice', 'Bob'], userCalendarId: 'demoCal' },
+    { id: 'demo2', title: 'Project Alpha Review', startTime: setHours(startOfDay(new Date()), 14), endTime: addMinutes(setHours(startOfDay(new Date()), 14), 90), color: 'bg-green-600', userId: 'demo', createdAt: new Date(), updatedAt: new Date(), description: 'Review progress on Project Alpha.', location: 'Conference Room 3', attendees: ['Charlie', 'Dave', 'Eve'], userCalendarId: 'demoCal' },
+    { id: 'demo3', title: 'Client Call - Acme Corp', startTime: addDays(setHours(startOfDay(new Date()), 11), 1), endTime: addMinutes(addDays(setHours(startOfDay(new Date()), 11), 1), 60), color: 'bg-purple-600', userId: 'demo', createdAt: new Date(), updatedAt: new Date(), description: 'Discuss new requirements.', location: 'Google Meet', attendees: null, userCalendarId: 'demoCal' },
+    { id: 'demo4', title: 'Gym Session', startTime: addDays(setHours(startOfDay(new Date()), 18), -1), endTime: addMinutes(addDays(setHours(startOfDay(new Date()), 18), -1), 60), color: 'bg-yellow-600', userId: 'demo', createdAt: new Date(), updatedAt: new Date(), description: null, location: null, attendees: [], userCalendarId: 'demoCal' },
+    { id: 'demo5', title: 'Dentist Appointment', startTime: addDays(setHours(startOfDay(new Date()), 10), 2), endTime: addMinutes(addDays(setHours(startOfDay(new Date()), 10), 2), 45), color: 'bg-red-600', userId: 'demo', createdAt: new Date(), updatedAt: new Date(), description: null, location: "Dr. Smith's Office", attendees: null, userCalendarId: 'demoCal' },
+];
+
+const DEMO_USER_CALENDARS: UserCalendarType[] = [
+    {id: 'demoCal', name: 'My Demo Calendar', color: 'bg-blue-600', isVisible: true, userId:'demo', createdAt: new Date(), updatedAt: new Date()}
+];
+
+const SkeletonPlaceholder: React.FC<{ className?: string; count?: number }> = ({ className, count = 1 }) => {
+  return (
+    <>
+      {Array.from({ length: count }).map((_, i) => (
+        <div
+          key={i}
+          className={cn("animate-pulse rounded-md bg-muted/50 dark:bg-muted/30", className)}
+        />
+      ))}
+    </>
+  );
+};
 
 export default function CalendarPage() {
   const [isMounted, setIsMounted] = useState(false);
@@ -101,6 +128,8 @@ export default function CalendarPage() {
   );
   const [isEventPopoverOpen, setIsEventPopoverOpen] = useState(false);
   const eventPopoverAnchorRef = useRef<HTMLElement | null>(null);
+  const [eventPopoverSide, setEventPopoverSide] = useState<"left" | "right" | "top" | "bottom">("right");
+
 
   const [isCreateEventDialogOpen, setIsCreateEventDialogOpen] = useState(false);
 
@@ -109,16 +138,29 @@ export default function CalendarPage() {
     null,
   );
   const gridCreatePopoverAnchorRef = useRef<HTMLElement | null>(null);
+  const [gridCreatePopoverSide, setGridCreatePopoverSide] = useState<"left" | "right" | "top" | "bottom">("right");
+  const [gridCreatePopoverAlign, setGridCreatePopoverAlign] = useState<"start" | "center" | "end">("start");
+
 
   const [isSidebarExpanded, setIsSidebarExpanded] = useState(true);
   const [isAgendaPanelExpanded, setIsAgendaPanelExpanded] = useState(true);
+  const [isCommandPaletteOpen, setIsCommandPaletteOpen] = useState(false);
+  const [temporaryEvent, setTemporaryEvent] = useState<Partial<CalendarEvent> | null>(null);
+
 
   const { data: sessionData, status: sessionStatus } = useSession();
   const utils = api.useUtils();
+  const searchParams = useSearchParams();
+  const router = useRouter();
+  const isDemoMode = searchParams?.get("viewMode") === "demo";
+  const isDesktop = useMediaQuery("(min-width: 768px)");
 
-  const { data: userCalendars } = api.userCalendar.getAll.useQuery(undefined, {
-    enabled: sessionStatus === "authenticated",
+
+  const { data: userCalendarsData } = api.userCalendar.getAll.useQuery(undefined, {
+    enabled: sessionStatus === "authenticated" && !isDemoMode,
   });
+  const userCalendars = isDemoMode ? DEMO_USER_CALENDARS : userCalendarsData;
+
   const [selectedCalendarIds, setSelectedCalendarIds] = useState<string[]>([]);
 
   useEffect(() => {
@@ -148,9 +190,8 @@ export default function CalendarPage() {
   }, [currentDate, currentView]);
 
   const {
-    data: events,
-    isLoading: isLoadingEvents,
-    error: eventsError,
+    data: fetchedEvents,
+    isLoading: isLoadingEventsInitial,
   } = api.event.getAllByUser.useQuery(
     {
       startDate: viewDateRange.start,
@@ -158,13 +199,15 @@ export default function CalendarPage() {
       userCalendarIds: selectedCalendarIds,
     },
     {
-      enabled: sessionStatus === "authenticated",
+      enabled: (sessionStatus === "authenticated" || isDemoMode) && selectedCalendarIds.length > 0,
       placeholderData: (prev) => prev,
       refetchOnWindowFocus: true,
       staleTime: 60 * 1000,
     },
   );
+  const events = isDemoMode ? DEMO_EVENTS : fetchedEvents;
   const safeEvents = useMemo(() => events ?? [], [events]);
+
 
   const daysInWeek = useMemo(() => {
     const firstDay = startOfWeek(currentDate, { weekStartsOn: 0 });
@@ -178,40 +221,103 @@ export default function CalendarPage() {
     setIsMounted(true);
   }, []);
 
-  // Handlers
+  useEffect(() => {
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if ((event.metaKey || event.ctrlKey) && event.key === "k") {
+        event.preventDefault();
+        setIsCommandPaletteOpen((prev) => !prev);
+      }
+      if (event.key === "Escape") {
+          if (isGridCreatePopoverOpen) setIsGridCreatePopoverOpen(false);
+          else if (isEventPopoverOpen) setIsEventPopoverOpen(false);
+          else if (isCommandPaletteOpen) setIsCommandPaletteOpen(false);
+          else if (isCreateEventDialogOpen) setIsCreateEventDialogOpen(false);
+      }
+    };
+    window.addEventListener("keydown", handleKeyDown);
+    return () => window.removeEventListener("keydown", handleKeyDown);
+  }, [isGridCreatePopoverOpen, isEventPopoverOpen, isCommandPaletteOpen, isCreateEventDialogOpen]);
+
+
+  const determinePopoverPosition = (target: HTMLElement, popoverWidth: number, popoverHeight: number) => {
+      const targetRect = target.getBoundingClientRect();
+      const viewportWidth = window.innerWidth;
+      const viewportHeight = window.innerHeight;
+
+      const spaceRight = viewportWidth - targetRect.right;
+      const spaceLeft = targetRect.left;
+      const spaceBottom = viewportHeight - targetRect.bottom;
+      const spaceTop = targetRect.top;
+
+      let side: "left" | "right" | "top" | "bottom" = "right";
+      let align: "start" | "center" | "end" = "start";
+
+      if (spaceRight >= popoverWidth + 10) side = "right";
+      else if (spaceLeft >= popoverWidth + 10) side = "left";
+      else if (spaceBottom >= popoverHeight + 10) {
+        side = "bottom";
+        if (targetRect.left + targetRect.width / 2 < popoverWidth / 2) align = "start";
+        else if (viewportWidth - (targetRect.left + targetRect.width / 2) < popoverWidth / 2) align = "end";
+        else align = "center";
+      } else if (spaceTop >= popoverHeight + 10) {
+        side = "top";
+        if (targetRect.left + targetRect.width / 2 < popoverWidth / 2) align = "start";
+        else if (viewportWidth - (targetRect.left + targetRect.width / 2) < popoverWidth / 2) align = "end";
+        else align = "center";
+      } else {
+        if (spaceRight > spaceLeft) side = "right"; else side = "left";
+        if (spaceBottom < popoverHeight && spaceTop < popoverHeight) {
+            if (targetRect.bottom < viewportHeight / 2) side = "bottom"; else side = "top";
+        }
+      }
+      return { side, align };
+  };
+
+
   const handleEventClick = useCallback(
     (event: CalendarEvent, target: HTMLElement) => {
       setSelectedEvent(event);
       eventPopoverAnchorRef.current = target;
+      const {side} = determinePopoverPosition(target, 384, 400); // Approx. Popover width & height
+      setEventPopoverSide(side);
       setIsEventPopoverOpen(true);
       setIsGridCreatePopoverOpen(false);
+      setTemporaryEvent(null);
     },
     [],
   );
 
-  const [gridCreatePopoverSide, setGridCreatePopoverSide] = useState<
-    "left" | "right"
-  >("right");
+ const clearTemporaryEvent = useCallback(() => setTemporaryEvent(null), []);
 
   const handleGridClick = useCallback((dateTime: Date, target: HTMLElement) => {
+    if (!isDesktop) {
+      setIsCreateEventDialogOpen(true);
+      setCurrentDate(dateTime);
+      clearTemporaryEvent();
+      return;
+    }
+
+    const tempId = `temp-${Date.now()}`;
+    const tempStartTime = dateTime;
+    const tempEndTime = addHours(dateTime, 1);
+    setTemporaryEvent({
+        id: tempId,
+        startTime: tempStartTime,
+        endTime: tempEndTime,
+        title: "New Event",
+        color: "bg-gray-400/70",
+    });
+
     setGridCreateDateTime(dateTime);
     gridCreatePopoverAnchorRef.current = target;
-
-    const targetRect = target.getBoundingClientRect();
-    const viewportWidth = window.innerWidth;
-    const spaceRight = viewportWidth - targetRect.right;
-    const popoverWidth = 384;
-
-    if (spaceRight < popoverWidth && targetRect.left > popoverWidth) {
-      setGridCreatePopoverSide("left");
-    } else {
-      setGridCreatePopoverSide("right");
-    }
+    const { side, align } = determinePopoverPosition(target, 384, 550); // Approx. Popover width & height
+    setGridCreatePopoverSide(side);
+    setGridCreatePopoverAlign(align);
 
     setIsGridCreatePopoverOpen(true);
     setIsEventPopoverOpen(false);
     setSelectedEvent(null);
-  }, []);
+  }, [isDesktop, clearTemporaryEvent]);
 
   const handleGoToToday = useCallback(() => setCurrentDate(new Date()), []);
   const handleNavigate = useCallback(
@@ -256,19 +362,16 @@ export default function CalendarPage() {
   }, [isEventPopoverOpen]);
 
   useEffect(() => {
-    if (!isGridCreatePopoverOpen) {
-      const timer = setTimeout(() => {
-        setGridCreateDateTime(null);
-        gridCreatePopoverAnchorRef.current = null;
-      }, 300);
-      return () => clearTimeout(timer);
+    if (!isGridCreatePopoverOpen && temporaryEvent) {
+       clearTemporaryEvent();
     }
-  }, [isGridCreatePopoverOpen]);
+  }, [isGridCreatePopoverOpen, temporaryEvent, clearTemporaryEvent]);
 
   const createEventFromGridMutation = api.event.create.useMutation({
     onSuccess: () => {
       void utils.event.getAllByUser.invalidate();
       setIsGridCreatePopoverOpen(false);
+      clearTemporaryEvent();
     },
     onError: (error) => {
       alert(`Failed to create event: ${error.message}`);
@@ -276,46 +379,55 @@ export default function CalendarPage() {
     },
   });
 
+  const initialExpandedAgendaWidthPx = 320;
+  const minExpandedAgendaWidthPx = 240;
+
   const {
     mainPanelStyle,
+    sidePanelStyle,
     startResizing,
     containerRef: resizableContainerRef,
     isResizing,
   } = useResizablePanels(
-    70,
+    75,
     300,
-    parseFloat(/(\d+(\.\d+)?)/.exec(agendaPanelCollapsedWidth)?.[0] ?? "64") *
-      (agendaPanelCollapsedWidth.includes("rem") ? 16 : 1),
+    minExpandedAgendaWidthPx,
+    initialExpandedAgendaWidthPx
   );
 
-  if (!isMounted || sessionStatus === "loading")
-    return <LoadingScreen message="Loading Calendar..." />;
-  if (
-    sessionStatus === "authenticated" &&
-    isLoadingEvents &&
-    !events &&
-    selectedCalendarIds.length > 0
-  )
-    return <LoadingScreen message="Loading Events..." />;
-  if (sessionStatus === "unauthenticated") return <RedirectToSignIn />;
-  if (eventsError)
+  useEffect(() => {
+    if (sessionStatus === "unauthenticated" && !isDemoMode) {
+      router.push("/api/auth/signin");
+    }
+  }, [sessionStatus, isDemoMode, router]);
+
+  if (!isMounted || (sessionStatus === "loading" && !isDemoMode)) {
     return (
-      <div className="bg-destructive text-destructive-foreground flex h-screen w-screen items-center justify-center">
-        Error loading calendar data: {eventsError.message}. Please try
-        refreshing.
-      </div>
+        <div className="flex h-screen w-screen items-center justify-center bg-background text-foreground">
+            <div className="flex flex-col items-center gap-4">
+                <SkeletonPlaceholder className="h-12 w-12 rounded-full" />
+                <SkeletonPlaceholder className="h-4 w-48" />
+                <SkeletonPlaceholder className="h-4 w-32" />
+            </div>
+        </div>
     );
-  if (!sessionData?.user) return <RedirectToSignIn />;
+  }
+
+  if (sessionStatus === "unauthenticated" && !isDemoMode) {
+    return <RedirectToSignIn />;
+  }
 
   return (
     <TooltipProvider>
-      <div className="bg-background text-foreground flex h-screen w-screen overflow-hidden">
-        {/* Sidebar */}
+      <div className="bg-transparent text-foreground flex h-full w-full overflow-hidden relative z-10">
         <Sidebar
           currentDate={currentDate}
           setCurrentDate={setCurrentDate}
-          onOpenCreateDialog={() => setIsCreateEventDialogOpen(true)}
-          onEventClick={(event, target) => handleEventClick(event, target)}
+          onOpenCreateDialog={() => {
+              clearTemporaryEvent();
+              setIsCreateEventDialogOpen(true);
+          }}
+          onEventClick={handleEventClick}
           isExpanded={isSidebarExpanded}
           toggleSidebar={toggleSidebar}
           selectedCalendarIds={selectedCalendarIds}
@@ -323,20 +435,16 @@ export default function CalendarPage() {
           className="hidden md:flex"
         />
 
-        {/* Main Content Area */}
         <div className="flex flex-1 flex-col overflow-hidden">
-          {/* Header */}
           <header
             className={cn(
               "relative z-30 flex h-16 flex-shrink-0 items-center justify-between border-b px-4 py-2 shadow-sm",
-              "border-border/50 dark:border-border/30",
-              "bg-[hsl(var(--background))]/[var(--bg-opacity-light)] dark:bg-[hsl(var(--dark-background))]/[var(--bg-opacity-dark)]",
-              "backdrop-blur-[--blur-intensity]",
-              "transform-gpu",
+              "border-white/10 dark:border-black/20",
+              "bg-transparent backdrop-blur-[var(--blur-intensity-strong)]"
             )}
           >
+            {/* Left Group */}
             <div className="flex items-center gap-2">
-              {/* Mobile Menu Trigger (for Sidebar) */}
               <Sheet>
                 <SheetTrigger asChild>
                   <Button
@@ -348,19 +456,19 @@ export default function CalendarPage() {
                     <MenuIcon className="h-5 w-5" />
                   </Button>
                 </SheetTrigger>
-                <SheetContent side="left" className="w-72 p-0">
+                <SheetContent side="left" className="w-72 p-0 bg-transparent backdrop-blur-md border-r border-white/10 dark:border-black/20">
                   <SidebarContent
                     currentDate={currentDate}
                     setCurrentDate={setCurrentDate}
-                    onOpenCreateDialog={() => setIsCreateEventDialogOpen(true)}
-                    onEventClick={(event: CalendarEvent, target: HTMLElement) =>
-                      handleEventClick(event, target)
-                    }
-                    isExpanded={true}
-                    toggleSidebar={() => {
+                    onOpenCreateDialog={() => {
+                      clearTemporaryEvent();
+                      setIsCreateEventDialogOpen(true);
                     }}
+                    onEventClick={handleEventClick}
+                    isExpanded={true}
+                    toggleSidebar={() => {}}
                     isMobile={true}
-                    className="h-full border-r-0 shadow-none"
+                    className="h-full border-r-0 shadow-none bg-transparent"
                     selectedCalendarIds={selectedCalendarIds}
                     setSelectedCalendarIds={setSelectedCalendarIds}
                   />
@@ -373,8 +481,10 @@ export default function CalendarPage() {
                     variant="default"
                     size="sm"
                     className={cn(
-                      "hidden px-3 md:inline-flex",
+                      "hidden px-3 py-4 md:inline-flex",
                       sharedGradientButtonStyle,
+                      "bg-white/20 hover:bg-white/30 dark:bg-black/20 dark:hover:bg-black/30 backdrop-blur-sm",
+                      "border-border border"
                     )}
                     onClick={handleGoToToday}
                     aria-label="Go to today"
@@ -393,7 +503,7 @@ export default function CalendarPage() {
                     <Button
                       variant="outline"
                       size="icon"
-                      className="h-8 w-8 rounded-none rounded-l-md border-0 border-r"
+                      className="h-8 w-8 rounded-none rounded-l-md border-0 border-r bg-white/20 hover:bg-white/30 dark:bg-black/20 dark:hover:bg-black/30 backdrop-blur-sm"
                       onClick={() => handleNavigate("prev")}
                       aria-label={`Previous ${currentView}`}
                     >
@@ -409,7 +519,7 @@ export default function CalendarPage() {
                     <Button
                       variant="outline"
                       size="icon"
-                      className="h-8 w-8 rounded-none rounded-r-md border-0"
+                      className="h-8 w-8 rounded-none rounded-r-md border-0 bg-white/20 hover:bg-white/30 dark:bg-black/20 dark:hover:bg-black/30 backdrop-blur-sm"
                       onClick={() => handleNavigate("next")}
                       aria-label={`Next ${currentView}`}
                     >
@@ -421,32 +531,20 @@ export default function CalendarPage() {
                   </TooltipContent>
                 </Tooltip>
               </div>
-              <h2 className="text-foreground ml-2 font-serif text-lg font-medium md:text-xl">
+            </div>
+
+            {/* Center Group (Date) */}
+            <div className="flex-grow px-2 text-center">
+              <h2 className="text-foreground truncate font-serif text-lg font-medium md:text-xl">
                 {format(
                   currentDate,
                   currentView === "month" ? "MMMM yyyy" : "MMMM d, yyyy",
                 )}
               </h2>
             </div>
-
-            <div className="absolute top-1/2 left-1/2 w-1/3 max-w-md min-w-[200px] -translate-x-1/2 -translate-y-1/2">
-              <div className="relative">
-                <Search className="text-muted-foreground absolute top-1/2 left-3 h-4 w-4 -translate-y-1/2" />
-                <Input
-                  type="search"
-                  placeholder="Search events..."
-                  aria-label="Search events"
-                  className={cn(
-                    "h-9 w-full pl-9",
-                    "isolate bg-zinc-100/80 bg-gradient-to-r ring-1 ring-zinc-400/20 dark:bg-zinc-800/80 dark:ring-zinc-700/30",
-                    "focus:ring-primary/50",
-                  )}
-                />
-              </div>
-            </div>
-
+            
+            {/* Right Group */}
             <div className="flex items-center gap-2">
-              {/* Calendar View Selector Animation */}
               <DropdownMenu>
                 <DropdownMenuTrigger asChild>
                   <Button
@@ -455,6 +553,7 @@ export default function CalendarPage() {
                     className={cn(
                       "group w-20 justify-between capitalize md:w-24",
                       sharedGradientButtonStyle,
+                       "bg-white/20 hover:bg-white/30 dark:bg-black/20 dark:hover:bg-black/30 backdrop-blur-sm"
                     )}
                     aria-label={`Current view: ${currentView}. Change view.`}
                   >
@@ -462,12 +561,11 @@ export default function CalendarPage() {
                     <ChevronDown className="ml-1 h-4 w-4 opacity-70 transition-transform duration-200 group-data-[state=open]:rotate-180" />
                   </Button>
                 </DropdownMenuTrigger>
-                <DropdownMenuContent align="end" className="w-32">
+                <DropdownMenuContent align="end" className="w-32 bg-popover/80 backdrop-blur-md dark:bg-dark-popover/80">
                   <DropdownMenuItem
                     onClick={() => handleToggleView("day")}
                     className={cn(
-                      currentView === "day" && "bg-accent font-semibold",
-                      "hover:bg-accent/70 dark:hover:bg-accent/70",
+                      currentView === "day" && "bg-accent/50 dark:bg-accent/30 font-semibold",
                     )}
                   >
                     Day
@@ -475,8 +573,7 @@ export default function CalendarPage() {
                   <DropdownMenuItem
                     onClick={() => handleToggleView("week")}
                     className={cn(
-                      currentView === "week" && "bg-accent font-semibold",
-                      "hover:bg-accent/70 dark:hover:bg-accent/70",
+                      currentView === "week" && "bg-accent/50 dark:bg-accent/30 font-semibold",
                     )}
                   >
                     Week
@@ -484,8 +581,7 @@ export default function CalendarPage() {
                   <DropdownMenuItem
                     onClick={() => handleToggleView("month")}
                     className={cn(
-                      currentView === "month" && "bg-accent font-semibold",
-                      "hover:bg-accent/70 dark:hover:bg-accent/70",
+                      currentView === "month" && "bg-accent/50 dark:bg-accent/30 font-semibold",
                     )}
                   >
                     Month
@@ -493,11 +589,27 @@ export default function CalendarPage() {
                 </DropdownMenuContent>
               </DropdownMenu>
 
+              <Tooltip>
+                  <TooltipTrigger asChild>
+                  <Button
+                      variant="outline"
+                      size="icon"
+                      className="h-8 w-8 bg-white/20 hover:bg-white/30 dark:bg-black/20 dark:hover:bg-black/30 backdrop-blur-sm"
+                      onClick={() => setIsCommandPaletteOpen(true)}
+                      aria-label="Open command palette (Cmd+K)"
+                  >
+                      <SearchIcon className="h-4 w-4" />
+                  </Button>
+                  </TooltipTrigger>
+                  <TooltipContent side="bottom">
+                  <p>Search / Commands (⌘K)</p>
+                  </TooltipContent>
+              </Tooltip>
+
               <div className="md:hidden">
                 <ThemeToggle />
               </div>
-              <div className="md:hidden">
-                {" "}
+              {!isDemoMode && sessionData?.user && (<div className="md:hidden">
                 <DropdownMenu>
                   <DropdownMenuTrigger asChild>
                     <Button
@@ -505,7 +617,7 @@ export default function CalendarPage() {
                       className="relative h-9 w-9 rounded-full"
                       aria-label="Open user menu"
                     >
-                      {sessionData?.user?.image ? (
+                      {sessionData.user.image ? (
                         <Image
                           src={sessionData.user.image}
                           alt={sessionData.user.name ?? "User"}
@@ -519,14 +631,14 @@ export default function CalendarPage() {
                       )}
                     </Button>
                   </DropdownMenuTrigger>
-                  <DropdownMenuContent align="end" className="w-56">
+                  <DropdownMenuContent align="end" className="w-56 bg-popover/80 backdrop-blur-md dark:bg-dark-popover/80">
                     <DropdownMenuLabel className="font-normal">
                       <div className="flex flex-col space-y-1">
-                        <p className="text-sm leading-none font-medium">
-                          {sessionData?.user?.name ?? "Account"}
+                        <p className="text-sm font-medium leading-none">
+                          {sessionData.user.name ?? "Account"}
                         </p>
                         <p className="text-muted-foreground text-xs leading-none">
-                          {sessionData?.user?.email}
+                          {sessionData.user.email}
                         </p>
                       </div>
                     </DropdownMenuLabel>
@@ -545,63 +657,78 @@ export default function CalendarPage() {
                     </DropdownMenuItem>
                   </DropdownMenuContent>
                 </DropdownMenu>
-              </div>
+              </div>)}
             </div>
           </header>
 
-          {/* Main content + Agenda Panel */}
           <div
             ref={resizableContainerRef}
             className="flex flex-1 overflow-hidden"
           >
             <main
-              className="custom-scrollbar overflow-x-hidden overflow-y-auto p-1 pb-2 md:p-2 lg:p-3"
-              style={{
-                ...mainPanelStyle,
-                minWidth: `${parseFloat(/(\d+(\.\d+)?)/.exec(agendaPanelCollapsedWidth)?.[0] ?? "64") * (agendaPanelCollapsedWidth.includes("rem") ? 16 : 1)}px`, // Example, ensure this aligns with your minMainPanelPixelWidth
-              }}
+              className="custom-scrollbar flex-1 overflow-x-hidden overflow-y-auto p-1 pb-2 md:p-2 lg:p-3"
+              style={mainPanelStyle}
             >
-              {/* Views */}
-              {currentView === "day" && (
-                <DayView
-                  currentDate={currentDate}
-                  events={safeEvents}
-                  onEventClick={handleEventClick}
-                  onGridClick={handleGridClick}
-                  userCalendars={userCalendars}
-                />
-              )}
-              {currentView === "week" && (
-                <WeekView
-                  currentDate={currentDate}
-                  events={safeEvents}
-                  onEventClick={handleEventClick}
-                  daysInWeek={daysInWeek}
-                  setCurrentDate={setCurrentDate}
-                  setCurrentView={setCurrentView}
-                  onGridClick={handleGridClick}
-                  userCalendars={userCalendars}
-                />
-              )}
-              {currentView === "month" && (
-                <MonthView
-                  currentDate={currentDate}
-                  events={safeEvents}
-                  onEventClick={handleEventClick}
-                  setCurrentDate={setCurrentDate}
-                  setCurrentView={setCurrentView}
-                />
-              )}
+            { (isLoadingEventsInitial && !isDemoMode && (!fetchedEvents || fetchedEvents.length === 0)) ? (
+                <div className="flex h-full flex-col">
+                    {currentView !== 'month' && <SkeletonPlaceholder className="h-16 w-full mb-2" />}
+                    <div className="grid grid-cols-1 md:grid-cols-7 flex-1 gap-px">
+                        {Array.from({length: currentView === 'day' ? 1 : 7}).map((_, i) => (
+                            <div key={i} className="p-2 space-y-2">
+                                <SkeletonPlaceholder className="h-8 w-full" />
+                                <SkeletonPlaceholder className="h-20 w-full" />
+                                <SkeletonPlaceholder className="h-12 w-full" />
+                                <SkeletonPlaceholder className="h-16 w-full" />
+                            </div>
+                        ))}
+                    </div>
+                </div>
+            ) : (
+              <>
+                {currentView === "day" && (
+                    <DayView
+                    currentDate={currentDate}
+                    events={safeEvents}
+                    onEventClick={handleEventClick}
+                    onGridClick={handleGridClick}
+                    temporaryEvent={temporaryEvent}
+                    />
+                )}
+                {currentView === "week" && (
+                    <WeekView
+                    currentDate={currentDate}
+                    events={safeEvents}
+                    onEventClick={handleEventClick}
+                    daysInWeek={daysInWeek}
+                    setCurrentDate={setCurrentDate}
+                    setCurrentView={setCurrentView}
+                    onGridClick={handleGridClick}
+                    temporaryEvent={temporaryEvent}
+                    />
+                )}
+                {currentView === "month" && (
+                    <MonthView
+                    currentDate={currentDate}
+                    events={safeEvents}
+                    onEventClick={handleEventClick}
+                    setCurrentDate={setCurrentDate}
+                    setCurrentView={setCurrentView}
+                    />
+                )}
+              </>
+            )}
             </main>
 
-            {isAgendaPanelExpanded && (
+            {isDesktop && (
               <div
                 className={cn(
                   "group flex w-2.5 flex-shrink-0 cursor-col-resize items-center justify-center",
-                  "bg-border/50 hover:bg-primary/30 transition-colors duration-150",
-                  isResizing && "bg-primary/50",
+                  "bg-transparent hover:bg-primary/20 transition-colors duration-150",
+                  isResizing && "bg-primary/30",
+                  !isAgendaPanelExpanded && "hidden" 
                 )}
-                onMouseDown={isAgendaPanelExpanded ? startResizing : undefined}
+                onMouseDown={startResizing}
+                onTouchStart={startResizing}
                 role="separator"
                 aria-orientation="vertical"
                 aria-label="Resize calendar and agenda panels"
@@ -612,104 +739,143 @@ export default function CalendarPage() {
             )}
 
             <AgendaPanel
-              events={safeEvents}
-              onEventClick={(event, target) => handleEventClick(event, target)}
-              isExpanded={isAgendaPanelExpanded}
-              togglePanel={toggleAgendaPanel}
-              className={cn(
-                "transition-all duration-300 ease-in-out",
-                isAgendaPanelExpanded
-                  ? `flex-auto ${agendaPanelExpandedWidth}`
-                  : `flex-none ${agendaPanelCollapsedWidth}`,
-              )}
+                events={safeEvents}
+                onEventClick={handleEventClick}
+                isExpanded={isAgendaPanelExpanded}
+                togglePanel={toggleAgendaPanel}
+                style={isDesktop && isAgendaPanelExpanded ? sidePanelStyle : undefined}
+                className={cn(
+                    "transition-all duration-300 ease-in-out",
+                    isDesktop
+                      ? (isAgendaPanelExpanded
+                          ? 'flex-none' 
+                          : `flex-none ${agendaPanelCollapsedWidth}`)
+                      : 'hidden'
+                )}
+                isLoadingEvents={isLoadingEventsInitial && !isDemoMode && (!fetchedEvents || fetchedEvents.length === 0)}
             />
           </div>
         </div>
-
-        {/* Popover for displaying and editing event details */}
-        <EventDetailPopover
-          event={selectedEvent}
-          isOpen={isEventPopoverOpen}
-          onOpenChange={setIsEventPopoverOpen}
-          anchorRef={eventPopoverAnchorRef}
-          onEventUpdated={() => {
-            void utils.event.getAllByUser.invalidate();
-          }}
-          onEventDeleted={() => {
-            void utils.event.getAllByUser.invalidate();
-          }}
-          userCalendars={userCalendars}
-        />
-
-        {/* Popover for creating event from grid click */}
-        <Popover
-          open={isGridCreatePopoverOpen}
-          onOpenChange={setIsGridCreatePopoverOpen}
-        >
-          <PopoverAnchor
-            virtualRef={
-              gridCreatePopoverAnchorRef as
-                | React.RefObject<HTMLElement>
-                | undefined
-            }
-          />
-          <PopoverContent
-            side={gridCreatePopoverSide}
-            align="start"
-            sideOffset={10}
-            className="bg-card text-card-foreground border-border/50 z-50 w-80 p-4 shadow-2xl md:w-96"
-            onInteractOutside={(e) => {
-              const target = e.target as HTMLElement;
-              if (target.closest("[data-calendar-event-id]")) {
-                e.preventDefault();
-              }
-            }}
-          >
-            {gridCreateDateTime && (
-              <>
-                <div className="mb-3 flex items-center justify-between">
-                  <h3 className="font-serif text-lg font-semibold">
-                    Create Event
-                  </h3>
-                  <Button
-                    variant="ghost"
-                    size="icon"
-                    className="h-7 w-7"
-                    onClick={() => setIsGridCreatePopoverOpen(false)}
-                  >
-                    <MenuIcon className="h-4 w-4" />
-                  </Button>
-                </div>
-                <EventForm
-                  defaultDate={gridCreateDateTime}
-                  defaultStartTime={gridCreateDateTime}
-                  onSave={(data) => {
-                    createEventFromGridMutation.mutate({
-                      ...data,
-                      // Ensure default 1-hour duration if not explicitly set by form interaction (though form itself handles this)
-                      endTime: data.endTime ?? addHours(data.startTime, 1),
-                    });
-                  }}
-                  isSaving={createEventFromGridMutation.isPending}
-                  onCancel={() => setIsGridCreatePopoverOpen(false)}
-                  userCalendars={userCalendars}
-                />
-              </>
-            )}
-          </PopoverContent>
-        </Popover>
-
-        {/* Dialog for creating event from sidebar button */}
-        <CreateEventDialog
-          isOpen={isCreateEventDialogOpen}
-          setIsOpen={setIsCreateEventDialogOpen}
-          onEventCreated={() => {
-            void utils.event.getAllByUser.invalidate();
-          }}
-          selectedDate={currentDate}
-          userCalendars={userCalendars}
-        />
       </div>
+
+      <EventDetailPopover
+        event={selectedEvent}
+        isOpen={isEventPopoverOpen}
+        onOpenChange={setIsEventPopoverOpen}
+        anchorRef={eventPopoverAnchorRef}
+        onEventUpdated={() => {
+          if(!isDemoMode) void utils.event.getAllByUser.invalidate();
+        }}
+        onEventDeleted={() => {
+          if(!isDemoMode) void utils.event.getAllByUser.invalidate();
+        }}
+        userCalendars={userCalendars}
+        popoverSide={eventPopoverSide}
+      />
+
+      <Popover
+        open={isGridCreatePopoverOpen}
+        onOpenChange={(open) => {
+            setIsGridCreatePopoverOpen(open);
+            if (!open) clearTemporaryEvent();
+        }}
+      >
+        <PopoverAnchor
+          virtualRef={
+            gridCreatePopoverAnchorRef as
+              | React.RefObject<HTMLElement>
+              | undefined
+          }
+        />
+        <PopoverContent
+          side={gridCreatePopoverSide}
+          align={gridCreatePopoverAlign}
+          sideOffset={10}
+          collisionPadding={10}
+          className="bg-popover/80 dark:bg-dark-popover/80 text-popover-foreground dark:text-dark-popover-foreground border-white/10 dark:border-black/20 z-50 w-80 p-0 shadow-2xl md:w-96 backdrop-blur-md"
+          onInteractOutside={(e) => {
+            const target = e.target as HTMLElement;
+            if (target.closest("[data-calendar-event-id^='temp-']")) {
+                e.preventDefault();
+                return;
+            }
+            if (target.closest("[data-calendar-event-id]:not([data-calendar-event-id^='temp-'])")) {
+              e.preventDefault(); // Prevent closing if clicking on another event while this popover is open
+              return;
+            }
+            setIsGridCreatePopoverOpen(false);
+            clearTemporaryEvent();
+          }}
+
+        >
+          {gridCreateDateTime && (
+            <>
+              <div className="border-white/10 dark:border-black/20 border-b px-6 pt-6 pb-3 flex items-center justify-between">
+                <h3 className="font-serif text-lg font-semibold">
+                  Create Event
+                </h3>
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  className="h-7 w-7"
+                  onClick={() => {
+                      setIsGridCreatePopoverOpen(false);
+                      clearTemporaryEvent();
+                  }}
+                >
+                  <XIcon className="h-4 w-4" />
+                </Button>
+              </div>
+              <div className="p-6">
+              <EventForm
+                defaultDate={gridCreateDateTime}
+                defaultStartTime={gridCreateDateTime}
+                onSave={(data) => {
+                  clearTemporaryEvent();
+                  if(isDemoMode) {
+                      alert("Demo mode: Event creation is not saved.");
+                      setIsGridCreatePopoverOpen(false);
+                      return;
+                  }
+                  createEventFromGridMutation.mutate({
+                    ...data,
+                    endTime: data.endTime ?? addHours(data.startTime, 1), // Ensure endTime is always provided
+                  });
+                }}
+                isSaving={createEventFromGridMutation.isPending}
+                onCancel={() => {
+                    clearTemporaryEvent();
+                    setIsGridCreatePopoverOpen(false);
+                }}
+                userCalendars={userCalendars}
+              />
+              </div>
+            </>
+          )}
+        </PopoverContent>
+      </Popover>
+
+      <CreateEventDialog
+        isOpen={isCreateEventDialogOpen}
+        setIsOpen={(open) => {
+            if (!open) clearTemporaryEvent();
+            setIsCreateEventDialogOpen(open);
+        }}
+        onEventCreated={() => {
+          clearTemporaryEvent();
+          if(!isDemoMode) void utils.event.getAllByUser.invalidate();
+          else alert("Demo mode: Event creation is not saved.");
+        }}
+        selectedDate={currentDate}
+        userCalendars={userCalendars}
+      />
+      <CommandPalette
+        isOpen={isCommandPaletteOpen}
+        setIsOpen={setIsCommandPaletteOpen}
+        onEventSelect={(event, target) => {
+           handleEventClick(event, target || document.body); 
+        }}
+      />
     </TooltipProvider>
   );
 }

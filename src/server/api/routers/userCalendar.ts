@@ -16,7 +16,7 @@ export const userCalendarRouter = createTRPCRouter({
         name: z.string().min(1, "Calendar name cannot be empty."),
         color: z
           .string()
-          .regex(/^bg-(?:[a-z]+)-(?:[0-9]{2,3})$/, "Invalid color format."), // Basic check for "bg-color-shade"
+          .regex(/^bg-(?:[a-z]+)-(?:[0-9]{2,3})$/, "Invalid color format."),
         isVisible: z.boolean().optional().default(true),
       }),
     )

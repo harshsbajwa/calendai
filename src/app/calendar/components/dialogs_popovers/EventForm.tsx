@@ -57,7 +57,7 @@ const EventForm: React.FC<EventFormProps> = ({
   );
   const initialStartTimeStr = useMemo(() => {
     const baseTime = defaultStartTime ?? event?.startTime ?? new Date();
-    const roundedTime = add(baseTime, { minutes: 0 }); // Start at the hour if no specific minute
+    const roundedTime = add(baseTime, { minutes: 0 });
     return format(roundedTime, "HH:mm");
   }, [event, defaultStartTime]);
 
@@ -104,7 +104,7 @@ const EventForm: React.FC<EventFormProps> = ({
       );
       setTitle("New Event");
     }
-  }, [event, defaultDate, defaultStartTime]);
+  }, [event, defaultDate, defaultStartTime, userCalendars]);
 
   // Auto-adjust end time if start time changes
   useEffect(() => {
@@ -116,7 +116,6 @@ const EventForm: React.FC<EventFormProps> = ({
         setEndTime(format(add(parsedStartTime, { hours: 1 }), "HH:mm"));
       }
     } catch (_) {
-      /* Ignore parsing errors during input */
     }
   }, [startTime, endTime, startDateString]);
 

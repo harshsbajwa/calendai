@@ -6,7 +6,7 @@ import * as TooltipPrimitive from "@radix-ui/react-tooltip";
 import { cn } from "~/lib/utils";
 
 function TooltipProvider({
-  delayDuration = 150, // Small delay
+  delayDuration = 150,
   ...props
 }: React.ComponentProps<typeof TooltipPrimitive.Provider>) {
   return (
@@ -42,16 +42,13 @@ function TooltipContent({
         data-slot="tooltip-content"
         sideOffset={sideOffset}
         className={cn(
-          // Ensure solid background from popover variables
           "border shadow-md",
-          "bg-[hsl(var(--popover))] text-[hsl(var(--popover-foreground))]", // OPAQUE background
-          "dark:bg-[hsl(var(--dark-popover))] dark:text-[hsl(var(--dark-popover-foreground))]", // OPAQUE background for dark
+          "bg-[hsl(var(--popover))] text-[hsl(var(--popover-foreground))]",
+          "dark:bg-[hsl(var(--dark-popover))] dark:text-[hsl(var(--dark-popover-foreground))]",
           "border-[hsl(var(--border))] dark:border-[hsl(var(--dark-border))]",
-          // Animation
           "animate-in fade-in-0 zoom-in-95",
           "data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=closed]:zoom-out-95",
           "data-[side=bottom]:slide-in-from-top-2 data-[side=left]:slide-in-from-right-2 data-[side=right]:slide-in-from-left-2 data-[side=top]:slide-in-from-bottom-2",
-          // Base styles
           "z-50 max-w-xs origin-[--radix-tooltip-content-transform-origin] rounded-md px-3 py-1.5 text-xs text-balance",
           className,
         )}

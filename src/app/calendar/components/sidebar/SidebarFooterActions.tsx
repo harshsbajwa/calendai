@@ -27,10 +27,10 @@ interface SidebarFooterActionsProps {
 const SidebarFooterActions: React.FC<SidebarFooterActionsProps> = ({
   isExpanded,
 }) => {
-  const { data: session } = useSession(); // Use client-side session hook
+  const { data: session } = useSession();
 
   if (!session?.user) {
-    return null; // Or some placeholder
+    return null;
   }
 
   return (

@@ -1,68 +1,73 @@
 import { useState, useCallback, useEffect, useRef } from "react";
+import { agendaPanelCollapsedWidth } from "~/app/calendar/utils/utils";
+
+const agendaCollapsedWidthPixels = parseInt(agendaPanelCollapsedWidth.replace('w-', '')) * 4;
 
 export function useResizablePanels(
-  initialMainPanelWidthPercent = 70,
-  minMainPanelPixelWidth = 200,
-  minSidePanelPixelWidth = 64,
+  initialMainPanelWidthPercent = 60,
+  minMainPanelPixelWidth = 300,
+  minSidePanelPixelWidth = agendaCollapsedWidthPixels,
+  initialSidePanelExpandedWidth = 288,
 ) {
   const [mainPanelFlexBasis, setMainPanelFlexBasis] = useState<string>(
     `${initialMainPanelWidthPercent}%`,
   );
+  const [sidePanelFlexBasis, setSidePanelFlexBasis] = useState<string>(
+    `${initialSidePanelExpandedWidth}px`,
+  );
   const [isResizing, setIsResizing] = useState(false);
   const containerRef = useRef<HTMLDivElement | null>(null);
-  const animationFrameRef = useRef<number | null>(null);
 
-  const startResizing = useCallback((e: React.MouseEvent) => {
-    e.preventDefault();
+  const startResizing = useCallback((e: React.MouseEvent | React.TouchEvent) => {
+    if ('touches' in e) {
+    } else {
+      e.preventDefault();
+    }
     setIsResizing(true);
-    document.body.style.userSelect = "none";
     document.body.style.cursor = "col-resize";
+    document.body.style.userSelect = "none";
   }, []);
 
   const stopResizing = useCallback(() => {
     if (isResizing) {
       setIsResizing(false);
-      document.body.style.userSelect = "";
       document.body.style.cursor = "";
-      if (animationFrameRef.current) {
-        cancelAnimationFrame(animationFrameRef.current);
-      }
+      document.body.style.userSelect = "";
     }
   }, [isResizing]);
 
   const resize = useCallback(
     (clientX: number) => {
-      // Accept clientX directly
-      if (!containerRef.current) return;
+      if (!isResizing || !containerRef.current) return;
 
       const containerRect = containerRef.current.getBoundingClientRect();
-      let newMainPanelAbsoluteWidth = clientX - containerRect.left;
+      const resizerWidth = 8;
+
+      let newMainPanelAbsoluteWidth = clientX - containerRect.left - resizerWidth / 2;
 
       newMainPanelAbsoluteWidth = Math.max(
         minMainPanelPixelWidth,
         newMainPanelAbsoluteWidth,
       );
       newMainPanelAbsoluteWidth = Math.min(
-        containerRect.width - minSidePanelPixelWidth,
+        containerRect.width - minSidePanelPixelWidth - resizerWidth,
         newMainPanelAbsoluteWidth,
       );
 
+      const newSidePanelAbsoluteWidth = containerRect.width - newMainPanelAbsoluteWidth - resizerWidth;
+
       if (containerRect.width > 0) {
         setMainPanelFlexBasis(`${newMainPanelAbsoluteWidth}px`);
+        setSidePanelFlexBasis(`${newSidePanelAbsoluteWidth}px`);
       }
     },
-    [minMainPanelPixelWidth, minSidePanelPixelWidth],
+    [isResizing, minMainPanelPixelWidth, minSidePanelPixelWidth],
   );
 
   const handleMouseMove = useCallback(
     (e: MouseEvent) => {
       if (!isResizing) return;
-      if (animationFrameRef.current) {
-        cancelAnimationFrame(animationFrameRef.current);
-      }
-      animationFrameRef.current = requestAnimationFrame(() => {
-        resize(e.clientX);
-      });
+      resize(e.clientX);
     },
     [isResizing, resize],
   );
@@ -70,12 +75,7 @@ export function useResizablePanels(
   const handleTouchMove = useCallback(
     (e: TouchEvent) => {
       if (!isResizing || !e.touches[0]) return;
-      if (animationFrameRef.current) {
-        cancelAnimationFrame(animationFrameRef.current);
-      }
-      animationFrameRef.current = requestAnimationFrame(() => {
-        resize(e.touches[0].clientX);
-      });
+      resize(e.touches[0].clientX);
     },
     [isResizing, resize],
   );
@@ -84,7 +84,7 @@ export function useResizablePanels(
     if (isResizing) {
       document.addEventListener("mousemove", handleMouseMove);
       document.addEventListener("mouseup", stopResizing);
-      document.addEventListener("touchmove", handleTouchMove);
+      document.addEventListener("touchmove", handleTouchMove, { passive: false });
       document.addEventListener("touchend", stopResizing);
       document.addEventListener("mouseleave", stopResizing);
     } else {
@@ -100,9 +100,10 @@ export function useResizablePanels(
       document.removeEventListener("touchmove", handleTouchMove);
       document.removeEventListener("touchend", stopResizing);
       document.removeEventListener("mouseleave", stopResizing);
-      if (animationFrameRef.current) {
-        cancelAnimationFrame(animationFrameRef.current);
-      }
+      if (isResizing) {
+           document.body.style.cursor = "";
+           document.body.style.userSelect = "";
+       }
     };
   }, [isResizing, handleMouseMove, stopResizing, handleTouchMove]);
 
@@ -110,6 +111,12 @@ export function useResizablePanels(
     mainPanelStyle: {
       flexBasis: mainPanelFlexBasis,
       width: mainPanelFlexBasis,
+      minWidth: `${minMainPanelPixelWidth}px`,
+    },
+    sidePanelStyle: {
+      flexBasis: sidePanelFlexBasis,
+      width: sidePanelFlexBasis,
+      minWidth: `${minSidePanelPixelWidth}px`,
     },
     startResizing,
     containerRef,

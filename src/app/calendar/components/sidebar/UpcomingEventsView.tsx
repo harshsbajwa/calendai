@@ -18,6 +18,20 @@ import {
   TooltipTrigger,
 } from "~/components/ui/tooltip";
 
+const SkeletonPlaceholder: React.FC<{ className?: string; count?: number, height?: string, width?: string }> = ({ className, count = 1, height = 'h-4', width = 'w-full' }) => {
+  return (
+    <>
+      {Array.from({ length: count }).map((_, i) => (
+        <div
+          key={i}
+          className={cn("animate-pulse rounded-md bg-muted/50 dark:bg-muted/30", height, width, className)}
+        />
+      ))}
+    </>
+  );
+};
+
+
 interface UpcomingEventsViewProps {
   onEventClick: (event: CalendarEvent, target: HTMLElement) => void;
   numEventsToShow?: number;
@@ -39,16 +53,18 @@ const UpcomingEventsView: React.FC<UpcomingEventsViewProps> = ({
     if (!rawEvents) return [];
     return rawEvents
       .filter((event) => isAfter(event.endTime, new Date()))
-      .sort((a, b) => a.startTime.getTime() - b.startTime.getTime())
+      .sort((a, b) => a.startTime.getTime() - b.startTime.getTime()) 
       .slice(0, numEventsToShow);
   }, [rawEvents, numEventsToShow]);
 
-  if (isLoading)
+  if (isLoading && (!rawEvents || rawEvents.length === 0) ) {
     return (
-      <p className="text-muted-foreground p-1 text-xs italic">
-        Loading upcoming...
-      </p>
+      <div className="space-y-2 p-1">
+        <SkeletonPlaceholder count={3} height="h-10" width="w-full" />
+      </div>
     );
+  }
+
 
   if (!upcomingEvents || upcomingEvents.length === 0) {
     return (
@@ -66,7 +82,7 @@ const UpcomingEventsView: React.FC<UpcomingEventsViewProps> = ({
             <button
               onClick={(e) => {
                 e.stopPropagation();
-                onEventClick(event, e.currentTarget as HTMLElement); // Pass the button itself as target
+                onEventClick(event, e.currentTarget as HTMLElement);
               }}
               aria-label={`View details for ${event.title}`}
               className={cn(

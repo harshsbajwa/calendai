@@ -9,7 +9,7 @@
   --card: 0 0% 100%;
   --card-foreground: 222.2 84% 4.9%;
   --page-bg-light: 336, 71%, 95%;
-  --popover: 0 0% 100%; /* e.g., white for popover base */
+  --popover: 0 0% 100%;
   --popover-foreground: 222.2 84% 4.9%;
   --primary: 221.2 83.2% 53.3%;
   --primary-foreground: 210 40% 98%;
@@ -27,14 +27,13 @@
   --radius: 0.5rem;
 
   /* --- Dark Mode Variable Overrides --- */
-  /* Ensure these are OPAQUE colors (alpha = 1) */
   --page-bg-dark: 250 57% 20%;
   --dark-foreground: 210 40% 98%;
-  --dark-card: 222.2 84% 4.9%; /* Darker, distinct card background */
+  --dark-card: 222.2 84% 4.9%;
   --dark-card-foreground: 210 40% 98%;
-  --dark-popover: 222.2 84% 4.9%; /* Darker, distinct popover background */
+  --dark-popover: 222.2 84% 4.9%;
   --dark-popover-foreground: 210 40% 98%;
-  --dark-background: 222.2 84% 4.9%; /* e.g., very dark blue/black */
+  --dark-background: 222.2 84% 4.9%;
   --dark-primary: 217.2 91.2% 59.8%;
   --dark-primary-foreground: 210 40% 98%;
   --dark-secondary: 217.2 32.6% 17.5%;
@@ -52,13 +51,23 @@
   /* --- Design System Variables --- */
   --font-serif: "EB Garamond", serif;
   --font-sans: "Inter", sans-serif;
-  --bg-opacity-light: 0.85; /* Opacity for light mode frosted elements */
-  --bg-opacity-dark: 0.75;  /* Opacity for dark mode frosted elements */
-  --frosted-bg-base-light: 0 0% 100%; /* e.g. white for light mode */
-  --frosted-bg-base-dark: 0 0% 0%;   /* e.g. black for dark mode */
-  --frosted-opacity: 0.65; /* Opacity for the frosted effect, adjust as needed */
-  --blur-intensity: 8px;   /* Standard blur */
-  --blur-intensity-strong: 12px; /* For elements that need more blur */
+
+  /* --- Glassmorphism RGBA Colors --- */
+  --glass-bg-light-rgba: rgba(255, 255, 255, 0.3);
+  --glass-bg-dark-rgba: rgba(0, 0, 0, 0.3);
+  --glass-card-bg-light-rgba: rgba(255, 255, 255, 0.3);
+  --glass-card-bg-dark-rgba: rgba(20, 20, 25, 0.3);
+  --glass-sidebar-bg-light-rgba: rgba(255, 255, 255, 0.3);
+  --glass-sidebar-bg-dark-rgba: rgba(0, 0, 0, 0.3);
+
+  --frosted-bg-base-light: 0 0% 100%;
+  --frosted-bg-base-dark: 0 0% 0%;
+  --frosted-opacity: 0.65;
+  --blur-intensity: 8px;
+  --blur-intensity-strong: 12px;
+
+  --popover-glass-light-rgba: rgba(255, 255, 255, 0.65);
+  --popover-glass-dark-rgba: rgba(30, 30, 35, 0.75); 
 
   /* --- Animations --- */
   @keyframes accordion-down { from { height: 0 } to { height: var(--radix-accordion-content-height) } }
@@ -76,9 +85,44 @@
   --animate-slide-in-bottom: slide-in-from-bottom 0.3s ease-out forwards;
   --animate-slide-in-left: slide-in-from-left 0.3s ease-out forwards;
   --animate-slide-in-right: slide-in-from-right 0.3s ease-out forwards;
+
+   /* Landing Page Text Animation */
+  @keyframes textFadeInOut {
+    0%, 100% {
+      opacity: 0.7;
+      filter: blur(2px);
+      text-shadow:
+        0 0 10px rgba(255, 255, 255, 0.25),
+        0 0 25px rgba(255, 255, 255, 0.2),
+        0 0 45px rgba(255, 230, 200, 0.18),
+        0 0 65px rgba(200, 220, 255, 0.12);
+    }
+    50% {
+      opacity: 0.9;
+      filter: blur(0.8px);
+      text-shadow:
+        0 0 6px rgba(255, 255, 255, 0.4),
+        0 0 20px rgba(255, 255, 255, 0.35),
+        0 0 40px rgba(255, 255, 255, 0.25),
+        0 0 65px rgba(255, 230, 200, 0.25),
+        0 0 95px rgba(200, 220, 255, 0.2);
+    }
+  }
 }
 
 @layer base {
+  @property --gradient-angle {
+    syntax: "<angle>";
+    inherits: false;
+    initial-value: 0deg;
+  }
+
+  @keyframes rotate {
+    to {
+      --gradient-angle: 360deg;
+    }
+  }
+
   html {
     height: 100%;
     font-family: var(--font-sans);
@@ -86,15 +130,19 @@
 
   body {
     height: 100%;
+    margin: 0;
     overflow: hidden;
-    @apply bg-gradient-to-br from-[hsl(var(--page-bg-light))] to-pink-300;
-    @apply dark:from-[hsl(var(--page-bg-dark))] dark:to-indigo-950;
-    /* Text color from main foreground variables */
+    background: linear-gradient(var(--gradient-angle), #89CFF0, #89b5f0);
+    background-size: 200% 200%;
+    animation: rotate 60s linear infinite;
     @apply text-[hsl(var(--foreground))] dark:text-[hsl(var(--dark-foreground))];
     @apply transition-colors duration-200 ease-in-out;
   }
 
-  /* Apply individual transitions */
+  .dark body {
+    background: linear-gradient(var(--gradient-angle), #310154, #FF4B33);
+  }
+
   * {
      @apply transition-colors duration-150 ease-out;
   }
@@ -110,14 +158,43 @@
   h1, h2, h3, h4, h5, h6, .font-serif {
     font-family: var(--font-serif);
   }
+
+  /* Landing Page Text Style */
+  .dream-text {
+    font-family: 'EB Garamond', serif;
+    font-size: clamp(3rem, 15vw, 12rem);
+    font-weight: 700;
+    color: white;
+    text-align: center;
+    mix-blend-mode: screen;
+    animation: textFadeInOut 12s ease-in-out infinite alternate;
+    letter-spacing: -0.06em;
+  }
+
+  .bg-popover-glass {
+    background-color: rgba(var(--popover-rgb), 0.8);
+    @apply dark:bg-[rgba(var(--dark-popover-rgb),0.8)];
+  }
 }
 
-/* Scrollbar Styling */
+.bg-popover-glass {
+  @apply bg-[var(--popover-glass-light-rgba)] dark:bg-[var(--popover-glass-dark-rgba)];
+}
+.bg-glass-pane {
+  @apply bg-[var(--glass-bg-light-rgba)] dark:bg-[var(--glass-bg-dark-rgba)];
+}
+.bg-glass-card {
+   @apply bg-[var(--glass-card-bg-light-rgba)] dark:bg-[var(--glass-card-bg-dark-rgba)];
+}
+.bg-glass-sidebar {
+   @apply bg-[var(--glass-sidebar-bg-light-rgba)] dark:bg-[var(--glass-sidebar-bg-dark-rgba)];
+}
+
+
 .custom-scrollbar::-webkit-scrollbar { width: 8px; height: 8px; }
 .custom-scrollbar::-webkit-scrollbar-track { background: transparent; }
 .custom-scrollbar::-webkit-scrollbar-thumb {
     background-color: hsl(var(--foreground) / 0.2);
-    /* Apply dark mode styling for WebKit scrollbar thumb */
     @apply dark:bg-[hsl(var(--dark-foreground)/0.2)];
     border-radius: 10px;
     border: 2px solid transparent;
@@ -125,54 +202,45 @@
  }
 .custom-scrollbar::-webkit-scrollbar-thumb:hover {
     background-color: hsl(var(--foreground) / 0.4);
-    /* Apply dark mode styling for WebKit scrollbar thumb on hover */
     @apply dark:bg-[hsl(var(--dark-foreground)/0.4)];
  }
 
-/* Firefox scrollbar - Using standard CSS for scrollbar-color */
 .custom-scrollbar {
     scrollbar-width: thin;
-    scrollbar-color: hsl(var(--foreground) / 0.2) transparent; /* Light mode */
+    scrollbar-color: hsl(var(--foreground) / 0.2) transparent;
 }
-.dark .custom-scrollbar { /* Target .custom-scrollbar when .dark is on a parent (html) */
-    scrollbar-color: hsl(var(--dark-foreground) / 0.2) transparent; /* Dark mode */
+.dark .custom-scrollbar {
+    scrollbar-color: hsl(var(--dark-foreground) / 0.2) transparent;
 }
 
 .custom-scrollbar:hover {
-    scrollbar-color: hsl(var(--foreground) / 0.4) transparent; /* Light mode hover */
+    scrollbar-color: hsl(var(--foreground) / 0.4) transparent;
 }
-.dark .custom-scrollbar:hover { /* Target .custom-scrollbar:hover when .dark is on a parent */
-    scrollbar-color: hsl(var(--dark-foreground) / 0.4) transparent; /* Dark mode hover */
+.dark .custom-scrollbar:hover {
+    scrollbar-color: hsl(var(--dark-foreground) / 0.4) transparent;
 }
 
 
-/* Remove default browser focus outline */
 *:focus {
   outline: none;
 }
-/* Apply focus ring using focus-visible for accessibility */
 *:focus-visible {
    @apply ring-2 ring-offset-2;
    @apply ring-[hsl(var(--ring))] ring-offset-[hsl(var(--background))];
    @apply dark:ring-[hsl(var(--dark-ring))] dark:ring-offset-[hsl(var(--dark-background))];
 }
-/* Ensure buttons and inputs also get the focus-visible style */
 button:focus-visible, input:focus-visible, select:focus-visible, textarea:focus-visible, [role="button"]:focus-visible, a:focus-visible {
    @apply ring-2 ring-offset-2;
    @apply ring-[hsl(var(--ring))] ring-offset-[hsl(var(--background))];
    @apply dark:ring-[hsl(var(--dark-ring))] dark:ring-offset-[hsl(var(--dark-background))];
 }
 
-
-/* Date picker indicator styling */
 input[type="date"]::-webkit-calendar-picker-indicator {
   cursor: pointer;
   filter: invert(0.6) brightness(80%);
   @apply dark:filter-[invert(0.8)_brightness(100%)];
 }
 
-
-/* Ensure Radix primitives don't override focus-visible */
 [data-radix-focus-guard]:focus {
     outline: none !important;
     box-shadow: none !important;

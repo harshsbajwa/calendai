@@ -73,7 +73,7 @@ model Event {
 model UserCalendar {
     id        String @id @default(cuid())
     name      String
-    color     String @default("bg-blue-600") // Default to a common event color
+    color     String @default("bg-blue-600")
     isVisible Boolean @default(true)
     userId    String
     user      User   @relation(fields: [userId], references: [id], onDelete: Cascade)

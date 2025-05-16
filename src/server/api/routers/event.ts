@@ -61,7 +61,24 @@ export const eventRouter = createTRPCRouter({
             message: "Selected calendar not found.",
           });
         }
+      } else {
+          // If no calendar ID is provided, find or create a default calendar for the user
+          let defaultCalendar = await ctx.db.userCalendar.findFirst({
+              where: { userId: ctx.session.user.id, name: "My Calendar" } // Or your default name logic
+          });
+          if (!defaultCalendar) {
+              defaultCalendar = await ctx.db.userCalendar.create({
+                  data: {
+                      name: "My Calendar",
+                      userId: ctx.session.user.id,
+                      color: "bg-blue-600", // Default color
+                      isVisible: true
+                  }
+              });
+          }
+          input.userCalendarId = defaultCalendar.id;
       }
+
 
       const event = await ctx.db.event.create({
         data: {
@@ -148,7 +165,7 @@ export const eventRouter = createTRPCRouter({
           ...dataToUpdate,
           description:
             dataToUpdate.description === null
-              ? undefined
+              ? undefined // Use undefined to unset if needed, or null based on schema
               : dataToUpdate.description,
           location:
             dataToUpdate.location === null ? undefined : dataToUpdate.location,
@@ -176,5 +193,31 @@ export const eventRouter = createTRPCRouter({
       }
       await ctx.db.event.delete({ where: { id: input.id } });
       return { success: true };
+    }),
+
+  search: protectedProcedure
+    .input(z.object({ query: z.string() }))
+    .query(async ({ ctx, input }) => {
+      const query = input.query.trim();
+      if (!query) {
+        return [];
+      }
+      
+      // Use 'contains' for standard substring search
+      const events = await ctx.db.event.findMany({
+        where: {
+          userId: ctx.session.user.id,
+          OR: [
+            { title: { contains: query, mode: "insensitive" } },
+            { description: { contains: query, mode: "insensitive" } },
+            { location: { contains: query, mode: "insensitive" } },
+          ],
+        },
+        orderBy: {
+          startTime: "desc",
+        },
+        take: 15,
+      });
+      return events;
     }),
 });

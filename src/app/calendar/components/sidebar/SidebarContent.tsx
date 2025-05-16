@@ -6,6 +6,8 @@ import {
   ChevronRight,
   Plus,
   Edit3,
+  PanelLeftClose,
+  PanelLeftOpen,
 } from "lucide-react";
 import {
   add,
@@ -32,12 +34,9 @@ import { Label } from "~/components/ui/label";
 import UpcomingEventsView from "./UpcomingEventsView";
 import SidebarFooterActions from "./SidebarFooterActions";
 import ManageCalendarsDialog from "./ManageCalendarsDialog";
-import type {
-  CalendarEvent,
-} from "~/app/calendar/utils/utils";
-import { PanelLeftClose, PanelLeftOpen } from "lucide-react";
+import type { CalendarEvent, UserCalendar as UserCalendarType } from "~/app/calendar/utils/utils";
 
-// Shared gradient button style
+
 const sharedGradientButtonStyle = cn(
   "bg-gradient-to-r dark:bg-white/5 isolate bg-white/30 ring-black/5",
   "shadow focus:outline-none",
@@ -49,20 +48,34 @@ const sharedGradientButtonStyle = cn(
   "before:[transition:background-position_0s_ease] hover:before:bg-[position:-100%_0,0_0] hover:before:duration-[1500ms]",
 );
 
+const SkeletonPlaceholder: React.FC<{ className?: string; count?: number, height?: string, width?: string }> = ({ className, count = 1, height = 'h-4', width = 'w-full' }) => {
+  return (
+    <>
+      {Array.from({ length: count }).map((_, i) => (
+        <div
+          key={i}
+          className={cn("animate-pulse rounded-md bg-muted/50 dark:bg-muted/30", height, width, className)}
+        />
+      ))}
+    </>
+  );
+};
+
 interface SidebarContentProps {
   currentDate: Date;
   setCurrentDate: (date: Date | ((prevDate: Date) => Date)) => void;
   onOpenCreateDialog: () => void;
   onEventClick: (event: CalendarEvent, target: HTMLElement) => void;
   isExpanded: boolean;
-  toggleSidebar: () => void; // For the expand/collapse button
+  toggleSidebar: () => void;
   isMobile?: boolean;
   className?: string;
   style?: React.CSSProperties;
-  selectedCalendarIds: string[]; // For checkboxes
+  selectedCalendarIds: string[];
   setSelectedCalendarIds: (
     ids: string[] | ((prev: string[]) => string[]),
-  ) => void; // For checkboxes
+  ) => void;
+  isLoadingUserCalendarsInitial?: boolean;
 }
 
 const SidebarContent: React.FC<SidebarContentProps> = ({
@@ -80,9 +93,11 @@ const SidebarContent: React.FC<SidebarContentProps> = ({
 }) => {
   const [isManageCalendarsOpen, setIsManageCalendarsOpen] = useState(false);
 
-  const { data: userCalendars, isLoading: isLoadingUserCalendars } =
+  const { data: userCalendars, isLoading: isLoadingUserCalendarsQuery } =
     api.userCalendar.getAll.useQuery();
   const utils = api.useUtils();
+
+  const showCalendarSkeletons = isLoadingUserCalendarsQuery && (!userCalendars || userCalendars.length === 0);
 
   const firstDayOfMonth = startOfMonth(currentDate);
   const lastDayOfMonth = endOfMonth(currentDate);
@@ -129,9 +144,11 @@ const SidebarContent: React.FC<SidebarContentProps> = ({
         )}
       >
         {(isExpanded || isMobile) && (
-          <h1 className="text-foreground ml-1 text-2xl font-semibold tracking-tight lowercase">
-            calendai
-          </h1>
+          <div className="ml-1 flex h-[40px] items-center">
+            <h1 className="font-serif text-3xl font-bold text-primary select-none">
+              calendai
+            </h1>
+          </div>
         )}
         <Tooltip>
           <TooltipTrigger asChild>
@@ -190,7 +207,6 @@ const SidebarContent: React.FC<SidebarContentProps> = ({
               )}
             </Button>
           </TooltipTrigger>
-          {/* Only show tooltip text if button text is hidden */}
           {!(isExpanded || isMobile) && (
             <TooltipContent side="right">
               <p>Create a New Event</p>
@@ -198,8 +214,6 @@ const SidebarContent: React.FC<SidebarContentProps> = ({
           )}
         </Tooltip>
       </div>
-
-      {/* Main content of the sidebar, conditionally rendered for expansion */}
       <div
         className={cn(
           "flex-grow overflow-hidden transition-opacity duration-300 ease-in-out",
@@ -209,8 +223,6 @@ const SidebarContent: React.FC<SidebarContentProps> = ({
         )}
       >
         <div className={isExpanded || isMobile ? "my-6" : "hidden"}>
-          {" "}
-          {/* Mini Calendar */}
           <div className="mb-2 flex items-center px-1">
             <h3 className="text-foreground w-full font-serif text-lg font-medium">
               {format(currentDate, "MMMM yyyy")}
@@ -308,8 +320,6 @@ const SidebarContent: React.FC<SidebarContentProps> = ({
         </div>
 
         <div className={isExpanded || isMobile ? "mb-6" : "hidden"}>
-          {" "}
-          {/* My Calendars */}
           <div className="mb-2 flex items-center justify-between px-1">
             <h3 className="text-foreground font-serif text-lg font-medium">
               My Calendars
@@ -335,16 +345,16 @@ const SidebarContent: React.FC<SidebarContentProps> = ({
             </Tooltip>
           </div>
           <div className="space-y-1.5">
-            {isLoadingUserCalendars && (
-              <p className="text-muted-foreground px-1 text-xs italic">
-                Loading calendars...
-              </p>
+            {showCalendarSkeletons && (
+              <div className="space-y-2 px-1">
+                <SkeletonPlaceholder count={3} height="h-6" width="w-full" />
+              </div>
             )}
-            {userCalendars?.map((cal) => (
+            {!showCalendarSkeletons && userCalendars?.map((cal) => (
               <div
                 key={cal.id}
                 className="hover:bg-accent flex cursor-pointer items-center gap-2.5 rounded px-1.5 py-1.5"
-                onClick={(e) => e.stopPropagation()}
+                onClick={(e) => e.stopPropagation()} // Allows clicking checkbox without toggling sidebar
                 role="group"
               >
                 <Checkbox
@@ -367,8 +377,8 @@ const SidebarContent: React.FC<SidebarContentProps> = ({
                 </Label>
               </div>
             ))}
-            {(!userCalendars || userCalendars.length === 0) &&
-              !isLoadingUserCalendars && (
+            {!showCalendarSkeletons && (!userCalendars || userCalendars.length === 0) &&
+               (
                 <p className="text-muted-foreground px-1 text-xs italic">
                   No calendars created yet. Click edit to add.
                 </p>
@@ -380,7 +390,6 @@ const SidebarContent: React.FC<SidebarContentProps> = ({
           <h3 className="text-foreground mb-2 px-1 font-serif text-lg font-medium">
             Upcoming
           </h3>
-          {/* Ensure the onEventClick here matches the one passed down from page.tsx */}
           <UpcomingEventsView onEventClick={onEventClick} />
         </div>
       </div>
@@ -392,8 +401,6 @@ const SidebarContent: React.FC<SidebarContentProps> = ({
             isExpanded ? "opacity-100" : "opacity-100",
           )}
         >
-          {" "}
-          {/* Keep icons visible when collapsed */}
           <SidebarFooterActions isExpanded={isExpanded} />
         </div>
       )}
@@ -403,7 +410,7 @@ const SidebarContent: React.FC<SidebarContentProps> = ({
         setIsOpen={setIsManageCalendarsOpen}
         onCalendarsUpdate={() => {
           void utils.userCalendar.getAll.invalidate();
-          void utils.event.getAllByUser.invalidate(); // Also refetch events if calendars change
+          void utils.event.getAllByUser.invalidate();
         }}
       />
     </div>

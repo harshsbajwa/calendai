@@ -1,48 +1,44 @@
+"use client";
+
+import React, { useEffect } from "react";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
+import { useSession } from "next-auth/react";
+import { Button } from "~/components/ui/button";
 
-import { LatestPost } from "~/app/_components/post";
-import { auth } from "~/server/auth";
-import { api, HydrateClient } from "~/trpc/server";
+const LandingPage: React.FC = () => {
+  const { data: session, status } = useSession();
+  const router = useRouter();
 
-export default async function Home() {
-  const hello = await api.post.hello({ text: "from tRPC" });
-  const session = await auth();
-
-  if (session?.user) {
-    void api.post.getLatest.prefetch();
-  }
+  useEffect(() => {
+    if (status === "authenticated" && session) {
+      router.push("/calendar");
+    }
+  }, [session, status, router]);
 
   return (
-    <HydrateClient>
-      <main className="flex min-h-screen flex-col items-center justify-center bg-gradient-to-b from-[#2e026d] to-[#15162c] text-white">
-        <div className="container flex flex-col items-center justify-center gap-12 px-4 py-16">
-          <Link
-            href="/calendar"
-            className="mt-4 rounded-full bg-white/10 px-10 py-3 font-semibold no-underline transition hover:bg-white/20"
-          >
-            Go to Calendar
-          </Link>
-          <div className="flex flex-col items-center gap-2">
-            <p className="text-2xl text-white">
-              {hello ? hello.greeting : "Loading tRPC query..."}
-            </p>
+    <main className="relative z-10 flex min-h-screen flex-col items-center justify-center p-4">
+      <div className="pointer-events-none flex h-full w-full items-center justify-center">
+        <h1 className="dream-text">calendai</h1>
+      </div>
+      <div className="absolute bottom-16 left-1/2 flex -translate-x-1/2 space-x-4">
+         <Button asChild variant="outline" className="border-white/30 bg-white/10 text-white hover:bg-white/20 backdrop-blur-sm">
+            <Link href="/calendar">
+                Enter App
+            </Link>
+        </Button>
+         <Button asChild variant="outline" className="border-white/30 bg-white/10 text-white hover:bg-white/20 backdrop-blur-sm">
+            <Link href="/api/auth/signin">
+                Login / Sign Up
+            </Link>
+        </Button>
+      </div>
 
-            <div className="flex flex-col items-center justify-center gap-4">
-              <p className="text-center text-2xl text-white">
-                {session && <span>Logged in as {session.user?.name}</span>}
-              </p>
-              <Link
-                href={session ? "/api/auth/signout" : "/api/auth/signin"}
-                className="rounded-full bg-white/10 px-10 py-3 font-semibold no-underline transition hover:bg-white/20"
-              >
-                {session ? "Sign out" : "Sign in"}
-              </Link>
-            </div>
-          </div>
-
-          {session?.user && <LatestPost />}
-        </div>
-      </main>
-    </HydrateClient>
+      <p className="absolute bottom-4 text-xs text-neutral-400">
+        © {new Date().getFullYear()} calendai. All rights reserved.
+      </p>
+    </main>
   );
-}
+};
+
+export default LandingPage;
