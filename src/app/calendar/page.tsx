@@ -1,6 +1,7 @@
 "use client";
 
 import React, {
+  Suspense,
   useState,
   useEffect,
   useMemo,
@@ -75,6 +76,7 @@ import CreateEventDialog from "./components/dialogs_popovers/CreateEventDialog";
 import EventDetailPopover from "./components/dialogs_popovers/EventDetailPopover";
 import EventForm from "./components/dialogs_popovers/EventForm";
 import CommandPalette from "./components/CommandPalette";
+import LoadingScreen from "./components/LoadingScreen";
 
 import {
   chatPanelCollapsedWidth,
@@ -171,7 +173,11 @@ const SkeletonPlaceholder: React.FC<{ className?: string; count?: number }> = ({
   );
 };
 
-export default function CalendarPage() {
+function CalendarPageContent() {
+  const searchParams = useSearchParams();
+  const router = useRouter();
+  const isDemoMode = searchParams?.get("viewMode") === "demo";
+
   const [isMounted, setIsMounted] = useState(false);
   const [currentDate, setCurrentDate] = useState(new Date());
   const [currentView, setCurrentView] = useState<"week" | "month" | "day">(
@@ -212,10 +218,25 @@ export default function CalendarPage() {
 
   const { data: sessionData, status: sessionStatus } = useSession();
   const utils = api.useUtils();
-  const searchParams = useSearchParams();
-  const router = useRouter();
-  const isDemoMode = searchParams?.get("viewMode") === "demo";
   const isDesktop = useMediaQuery("(min-width: 768px)");
+
+  const chatPanelCollapsedWidthPx =
+    parseInt(chatPanelCollapsedWidth.replace("w-", "")) * 4;
+  const minResizableChatPanelWidth = 240;
+  const initialSidePanelExpandedWidth = 384;
+
+  const {
+    mainPanelStyle,
+    sidePanelStyle: resizableSidePanelStyle,
+    startResizing,
+    containerRef: resizableContainerRef,
+    isResizing,
+  } = useResizablePanels(
+    isDesktop && isChatPanelExpanded ? 65 : 100, // Ensure isDesktop and isChatPanelExpanded are defined before this
+    300,
+    minResizableChatPanelWidth,
+    initialSidePanelExpandedWidth,
+  );
 
   const { data: userCalendarsData } = api.userCalendar.getAll.useQuery(
     undefined,
@@ -314,69 +335,73 @@ export default function CalendarPage() {
     isMobileChatSheetOpen,
   ]);
 
-  const determinePopoverPosition = (
-    target: HTMLElement,
-    popoverWidth: number,
-    popoverHeight: number,
-  ) => {
-    const targetRect = target.getBoundingClientRect();
-    const viewportWidth = window.innerWidth;
-    const viewportHeight = window.innerHeight;
+  const determinePopoverPosition = useCallback(
+    (
+      target: HTMLElement,
+      popoverWidth: number,
+      popoverHeight: number,
+    ): {
+      side: "left" | "right" | "top" | "bottom";
+      align: "start" | "center" | "end";
+    } => {
+      const targetRect = target.getBoundingClientRect();
+      const viewportWidth = window.innerWidth;
+      const viewportHeight = window.innerHeight;
 
-    const spaceRight = viewportWidth - targetRect.right;
-    const spaceLeft = targetRect.left;
-    const spaceBottom = viewportHeight - targetRect.bottom;
-    const spaceTop = targetRect.top;
+      const spaceRight = viewportWidth - targetRect.right;
+      const spaceLeft = targetRect.left;
+      const spaceBottom = viewportHeight - targetRect.bottom;
+      const spaceTop = targetRect.top;
 
-    let side: "left" | "right" | "top" | "bottom" = "right";
-    let align: "start" | "center" | "end" = "start";
+      let side: "left" | "right" | "top" | "bottom" = "right";
+      let align: "start" | "center" | "end" = "start";
 
-    if (spaceRight >= popoverWidth + 10) side = "right";
-    else if (spaceLeft >= popoverWidth + 10) side = "left";
-    else if (spaceBottom >= popoverHeight + 10) {
-      side = "bottom";
-
-      if (targetRect.left + targetRect.width / 2 < popoverWidth / 2)
-        align = "start";
-      else if (
-        viewportWidth - (targetRect.left + targetRect.width / 2) <
-        popoverWidth / 2
-      )
-        align = "end";
-      else align = "center";
-    } else if (spaceTop >= popoverHeight + 10) {
-      side = "top";
-      if (targetRect.left + targetRect.width / 2 < popoverWidth / 2)
-        align = "start";
-      else if (
-        viewportWidth - (targetRect.left + targetRect.width / 2) <
-        popoverWidth / 2
-      )
-        align = "end";
-      else align = "center";
-    } else {
-      if (spaceRight > spaceLeft) side = "right";
-      else side = "left";
-
-      if (spaceBottom < popoverHeight && spaceTop < popoverHeight) {
-        if (targetRect.bottom < viewportHeight / 2) side = "bottom";
-        else side = "top";
+      if (spaceRight >= popoverWidth + 10) side = "right";
+      else if (spaceLeft >= popoverWidth + 10) side = "left";
+      else if (spaceBottom >= popoverHeight + 10) {
+        side = "bottom";
+        if (targetRect.left + targetRect.width / 2 < popoverWidth / 2)
+          align = "start";
+        else if (
+          viewportWidth - (targetRect.left + targetRect.width / 2) <
+          popoverWidth / 2
+        )
+          align = "end";
+        else align = "center";
+      } else if (spaceTop >= popoverHeight + 10) {
+        side = "top";
+        if (targetRect.left + targetRect.width / 2 < popoverWidth / 2)
+          align = "start";
+        else if (
+          viewportWidth - (targetRect.left + targetRect.width / 2) <
+          popoverWidth / 2
+        )
+          align = "end";
+        else align = "center";
+      } else {
+        if (spaceRight > spaceLeft) side = "right";
+        else side = "left";
+        if (spaceBottom < popoverHeight && spaceTop < popoverHeight) {
+          if (targetRect.bottom < viewportHeight / 2) side = "bottom";
+          else side = "top";
+        }
       }
-    }
-    return { side, align };
-  };
+      return { side, align };
+    },
+    [],
+  );
 
   const handleEventClick = useCallback(
     (event: CalendarEvent, target: HTMLElement) => {
       setSelectedEvent(event);
       eventPopoverAnchorRef.current = target;
-      const { side } = determinePopoverPosition(target, 384, 400);
+      const { side } = determinePopoverPosition(target, 384, 400); // Example dimensions
       setEventPopoverSide(side);
       setIsEventPopoverOpen(true);
       setIsGridCreatePopoverOpen(false);
       setTemporaryEvent(null);
     },
-    [],
+    [determinePopoverPosition],
   );
 
   const clearTemporaryEvent = useCallback(() => setTemporaryEvent(null), []);
@@ -403,7 +428,7 @@ export default function CalendarPage() {
 
       setGridCreateDateTime(dateTime);
       gridCreatePopoverAnchorRef.current = target;
-      const { side, align } = determinePopoverPosition(target, 384, 550);
+      const { side, align } = determinePopoverPosition(target, 384, 550); // Example dimensions
       setGridCreatePopoverSide(side);
       setGridCreatePopoverAlign(align);
 
@@ -411,7 +436,7 @@ export default function CalendarPage() {
       setIsEventPopoverOpen(false);
       setSelectedEvent(null);
     },
-    [isDesktop, clearTemporaryEvent],
+    [isDesktop, clearTemporaryEvent, determinePopoverPosition],
   );
 
   const handleGoToToday = useCallback(() => setCurrentDate(new Date()), []);
@@ -476,24 +501,6 @@ export default function CalendarPage() {
     },
   });
 
-  const chatPanelCollapsedWidthPx =
-    parseInt(chatPanelCollapsedWidth.replace("w-", "")) * 4;
-  const minResizableChatPanelWidth = 240;
-  const initialSidePanelExpandedWidth = 384;
-
-  const {
-    mainPanelStyle,
-    sidePanelStyle: resizableSidePanelStyle,
-    startResizing,
-    containerRef: resizableContainerRef,
-    isResizing,
-  } = useResizablePanels(
-    isDesktop && isChatPanelExpanded ? 65 : 100,
-    300,
-    minResizableChatPanelWidth,
-    initialSidePanelExpandedWidth,
-  );
-
   useEffect(() => {
     if (sessionStatus === "unauthenticated" && !isDemoMode) {
       router.push("/api/auth/signin");
@@ -542,9 +549,8 @@ export default function CalendarPage() {
               "bg-transparent backdrop-blur-[var(--blur-intensity-strong)]",
             )}
           >
-            {}
             <div className="flex items-center gap-2">
-              <Sheet>
+              <Sheet open={isSheetOpen} onOpenChange={setIsSheetOpen}>
                 <SheetTrigger asChild>
                   <Button
                     variant="ghost"
@@ -565,12 +571,14 @@ export default function CalendarPage() {
                     onOpenCreateDialog={() => {
                       clearTemporaryEvent();
                       setIsCreateEventDialogOpen(true);
+                      setIsSheetOpen(false);
                     }}
-                    onEventClick={handleEventClick}
+                    onEventClick={(event, target) => {
+                      handleEventClick(event, target);
+                      setIsSheetOpen(false);
+                    }}
                     isExpanded={true}
-                    toggleSidebar={() => {
-                      // no-op
-                    }}
+                    toggleSidebar={() => setIsSheetOpen(false)}
                     isMobile={true}
                     className="h-full border-r-0 bg-transparent shadow-none"
                     selectedCalendarIds={selectedCalendarIds}
@@ -637,7 +645,6 @@ export default function CalendarPage() {
               </div>
             </div>
 
-            {}
             <div className="flex-grow px-6 text-center">
               <h1 className="dream-text text-xl md:text-4xl">
                 {format(
@@ -647,7 +654,6 @@ export default function CalendarPage() {
               </h1>
             </div>
 
-            {}
             <div className="flex items-center gap-2">
               <DropdownMenu>
                 <DropdownMenuTrigger asChild>
@@ -860,7 +866,7 @@ export default function CalendarPage() {
                 <div
                   className={cn(
                     "flex-shrink-0",
-                    "flex flex-col overflow-hidden transition-all duration-300 ease-in-out",
+                    "relative flex flex-col overflow-hidden transition-all duration-300 ease-in-out",
                     "my-3 mr-3 rounded-xl",
                     "border-2 border-white/20 dark:border-black/20",
                     "bg-glass-pane ring-1 ring-black/5 backdrop-blur-[12px] backdrop-saturate-150",
@@ -868,11 +874,14 @@ export default function CalendarPage() {
                       (isChatPanelHovering
                         ? chatPanelHoverWidth
                         : chatPanelCollapsedWidth),
+                    !isChatPanelExpanded && "cursor-pointer",
                   )}
                   style={
                     isChatPanelExpanded
                       ? resizableSidePanelStyle
-                      : { minWidth: `${chatPanelCollapsedWidthPx}px` }
+                      : {
+                          minWidth: `${chatPanelCollapsedWidthPx}px`,
+                        }
                   }
                   onMouseEnter={() => {
                     if (!isChatPanelExpanded && isDesktop) {
@@ -884,11 +893,16 @@ export default function CalendarPage() {
                       setIsChatPanelHovering(false);
                     }
                   }}
-                  onClick={() => {
+                  onClick={(e) => {
                     if (!isChatPanelExpanded && isDesktop) {
-                      toggleChatPanel();
+                      const target = e.target as HTMLElement;
+                      if (!target.closest("button")) {
+                        toggleChatPanel();
+                      }
                     }
                   }}
+                  role="complementary"
+                  aria-label="Chat Panel"
                 >
                   <AIChatPanel
                     isExpanded={isChatPanelExpanded}
@@ -905,7 +919,7 @@ export default function CalendarPage() {
                   <Button
                     variant="default"
                     size="icon"
-                    className="fixed right-4 bottom-4 z-50 h-14 w-14 rounded-full shadow-lg md:hidden"
+                    className="fixed bottom-4 right-4 z-50 h-14 w-14 rounded-full shadow-lg md:hidden"
                     aria-label="Open Chat"
                   >
                     <Sparkles className="h-7 w-7 animate-pulse" />
@@ -949,13 +963,13 @@ export default function CalendarPage() {
           if (!open) clearTemporaryEvent();
         }}
       >
-        <PopoverAnchor
-          virtualRef={
-            gridCreatePopoverAnchorRef as
-              | React.RefObject<HTMLElement>
-              | undefined
-          }
-        />
+        {gridCreatePopoverAnchorRef.current && ( // Ensure anchorRef is not null
+          <PopoverAnchor
+            virtualRef={
+              gridCreatePopoverAnchorRef as React.RefObject<HTMLElement>
+            }
+          />
+        )}
         <PopoverContent
           side={gridCreatePopoverSide}
           align={gridCreatePopoverAlign}
@@ -986,7 +1000,7 @@ export default function CalendarPage() {
                 <h3 className="font-serif text-lg font-semibold">
                   Create Event
                 </h3>
-                {}
+                {/* Close button can be added here if needed */}
               </div>
               <div className="p-6">
                 <EventForm
@@ -1040,5 +1054,13 @@ export default function CalendarPage() {
         }}
       />
     </TooltipProvider>
+  );
+}
+
+export default function CalendarPage() {
+  return (
+    <Suspense fallback={<LoadingScreen message="Loading Calendar..." />}>
+      <CalendarPageContent />
+    </Suspense>
   );
 }

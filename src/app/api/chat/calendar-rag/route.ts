@@ -4,184 +4,171 @@ import {
   type Message as VercelUIMessage,
 } from "ai";
 import { createOpenRouter } from "@openrouter/ai-sdk-provider";
-import { format } from "date-fns";
-import type { NextRequest } from "next/server";
+import { format } from "date-fns-tz";
+import { type NextRequest } from "next/server";
 
 import { auth } from "~/server/auth";
 import { db } from "~/server/db";
 import { env } from "~/env";
+import { LRUCache } from "lru-cache";
+
+type Event = {
+  title: string;
+  startTime: Date;
+  endTime: Date;
+  location?: string | null;
+  attendees?: string[] | null;
+  recurrence?: string | null;
+  description?: string | null;
+};
+
+type ChatRequestBody = {
+  messages: VercelUIMessage[];
+  timezone?: string;
+};
+
+const cache = new LRUCache<string, string>({ max: 100, ttl: 5 * 60 * 1000 });
 
 const openrouter = createOpenRouter({
   apiKey: env.OPENROUTER_API_KEY,
 });
 
 const openRouterModule = openrouter.chat(
-  "deepseek/deepseek-r1-distill-qwen-32b:free",
+  "meta-llama/llama-3.3-8b-instruct:free",
 );
 
-const convertToCoreMessages = (messages: VercelUIMessage[]): CoreMessage[] => {
-  const coreMessages: CoreMessage[] = [];
+function convertToCoreMessages(messages: VercelUIMessage[]): CoreMessage[] {
+  const validMessages: CoreMessage[] = [];
 
   for (const message of messages) {
-    let coreMsg: CoreMessage | null = null;
-    switch (message.role) {
-      case "user":
-        coreMsg = { role: "user", content: message.content };
-        break;
-      case "assistant":
-        coreMsg = { role: "assistant", content: message.content };
-        break;
-      case "system":
-        coreMsg = { role: "system", content: message.content };
-        break;
-      default:
-        const unhandledRole = message.role as string;
-        if (unhandledRole && message.content) {
-          console.warn(
-            `Unhandled message role "${unhandledRole}" in history. Treating as user message.`,
-          );
-          coreMsg = {
-            role: "user",
-            content: `${unhandledRole}: ${message.content}`,
-          };
-        }
-    }
+    // Ensure content is a plain string (not parts, files, etc.)
+    if (typeof message.content !== "string" || !message.content.trim())
+      continue;
 
-    if (coreMsg) {
-      if (
-        typeof coreMsg.content === "string" &&
-        coreMsg.content.trim() === ""
-      ) {
-        // skip
-      } else if (
-        Array.isArray(coreMsg.content) &&
-        coreMsg.content.length === 0
-      ) {
-        // skip
-      } else {
-        coreMessages.push(coreMsg);
-      }
+    const trimmedContent = message.content.trim();
+
+    if (
+      message.role === "user" ||
+      message.role === "assistant" ||
+      message.role === "system"
+    ) {
+      validMessages.push({ role: message.role, content: trimmedContent });
+    } else {
+      console.warn(
+        `Unhandled message role "${message.role}", treating as user.`,
+      );
+      validMessages.push({
+        role: "user",
+        content: `${message.role}: ${trimmedContent}`,
+      });
     }
   }
-  return coreMessages;
-};
-
-const RAG_PROMPT_SYSTEM_MESSAGE_CONTENT = (
-  eventContext: string,
-): string => `You are CalendAI, a friendly and insightful AI assistant specialized in helping users manage and understand their calendar.
-Your goal is to answer questions about the user's calendar events based on the provided context.
-If the information is not in the context or if the context is empty, politely state that you don't have that specific information or that there are no relevant events in the provided context.
-Be conversational and helpful. Use today's date: ${format(new Date(), "EEEE, MMMM d, yyyy")} to orient yourself if needed for relative date questions (like "tomorrow"), but always prioritize the event dates from the context.
-
-Here is the relevant calendar event context:
-${eventContext}`;
-
-interface ChatRequestBody {
-  messages: VercelUIMessage[];
+  return validMessages;
 }
 
-export async function POST(req: NextRequest) {
+function buildSystemPrompt(eventsText: string, tz: string): string {
+  const now = new Date();
+  const today = format(now, "EEEE, MMMM d, yyyy", { timeZone: tz });
+
+  return `You are CalendAI, a helpful assistant for calendar tasks.
+    You always answer based on the provided events.
+    If no relevant events are found, state this clearly and helpfully.
+
+    Assume the user's timezone is "${tz}". Today is ${today}. Prioritize event dates when answering.
+
+    Here are the events:
+
+    ${eventsText}`;
+}
+
+function renderEvents(events: Event[], timezone: string): string {
+  return events
+    .map((event) => {
+      return `Event: ${event.title}
+Date: ${format(event.startTime, "EEEE, MMM d, yyyy", { timeZone: timezone })}
+Time: ${format(event.startTime, "p", { timeZone: timezone })} - ${format(event.endTime, "p", { timeZone: timezone })}
+Location: ${event.location ?? "Not specified"}
+Attendees: ${event.attendees?.join(", ") ?? "Not specified"}
+Recurrence: ${event.recurrence ?? "None"}
+Description: ${event.description ?? "None"}`;
+    })
+    .join("\n\n---\n\n");
+}
+
+export async function POST(req: NextRequest): Promise<Response> {
   try {
     const session = await auth();
     if (!session?.user?.id) {
       return new Response(JSON.stringify({ error: "Unauthorized" }), {
         status: 401,
-        headers: { "Content-Type": "application/json" },
       });
     }
 
-    const requestBody = (await req.json()) as ChatRequestBody;
-    const { messages: vercelMessages } = requestBody;
+    const body = (await req.json()) as ChatRequestBody;
+    const { messages, timezone = "UTC" } = body;
 
-    if (!vercelMessages || vercelMessages.length === 0) {
+    if (!messages || messages.length === 0) {
       return new Response(JSON.stringify({ error: "No messages provided" }), {
         status: 400,
-        headers: { "Content-Type": "application/json" },
       });
     }
 
-    const startDate = new Date();
-    const endDate = new Date();
-    endDate.setDate(startDate.getDate() + 7);
+    const now = new Date();
+    const weekFromNow = new Date(now);
+    weekFromNow.setDate(now.getDate() + 7);
 
     const userEvents = await db.event.findMany({
       where: {
         userId: session.user.id,
         OR: [
-          { startTime: { gte: startDate, lte: endDate } },
-          { endTime: { gte: startDate, lte: endDate } },
-          {
-            AND: [
-              { startTime: { lte: startDate } },
-              { endTime: { gte: endDate } },
-            ],
-          },
+          { startTime: { gte: now, lte: weekFromNow } },
+          { endTime: { gte: now, lte: weekFromNow } },
+          { startTime: { lte: now }, endTime: { gte: weekFromNow } },
         ],
       },
       orderBy: { startTime: "asc" },
       take: 15,
     });
 
-    const formattedEvents = userEvents
-      .map(
-        (event) =>
-          `Event: ${event.title}\nDate: ${format(event.startTime, "EEEE, MMM d, yyyy")}\nTime: ${format(event.startTime, "p")} to ${format(event.endTime, "p")}\nLocation: ${event.location ?? "Not specified"}\nDescription: ${event.description ?? "None"}`,
-      )
-      .join("\n\n---\n\n");
+    const typedEvents = userEvents as Event[];
 
-    const event_context_for_prompt =
-      userEvents.length > 0
-        ? `${formattedEvents}`
-        : "You currently have no events in the upcoming 7 days to discuss.";
+    const cacheKey = `${session.user.id}:${timezone}`;
+    let promptContext = cache.get(cacheKey);
 
-    const coreMessagesForStream: CoreMessage[] = [
+    if (!promptContext) {
+      promptContext =
+        typedEvents.length > 0
+          ? renderEvents(typedEvents, timezone)
+          : "You currently have no events in the next 7 days.";
+      cache.set(cacheKey, promptContext);
+    }
+
+    const coreMessages: CoreMessage[] = [
       {
         role: "system",
-        content: RAG_PROMPT_SYSTEM_MESSAGE_CONTENT(event_context_for_prompt),
+        content: buildSystemPrompt(promptContext, timezone),
       },
-      ...convertToCoreMessages(vercelMessages),
+      ...convertToCoreMessages(messages),
     ];
 
     const result = streamText({
       model: openRouterModule,
-      messages: coreMessagesForStream,
+      messages: coreMessages,
       temperature: 0.7,
     });
 
     return result.toDataStreamResponse();
-  } catch (e: unknown) {
-    console.error("Error in RAG API route:", e);
-    let errorMessage = "An error occurred processing your request.";
-    let statusCode = 500;
+  } catch (err: unknown) {
+    console.error("Error in calendar-rag POST:", err);
 
-    if (e instanceof Error) {
-      errorMessage = e.message;
-    } else if (typeof e === "string") {
-      errorMessage = e;
-    }
+    const errorMessage =
+      err instanceof Error
+        ? err.message
+        : typeof err === "string"
+          ? err
+          : "Unknown error occurred.";
 
-    if (
-      e &&
-      typeof e === "object" &&
-      "cause" in e &&
-      e.cause &&
-      typeof e.cause === "object" &&
-      "message" in e.cause
-    ) {
-      const causeMessage = (e.cause as { message?: unknown }).message;
-      if (typeof causeMessage === "string") {
-        errorMessage = `${errorMessage} Cause: ${causeMessage}`;
-      }
-    }
-
-    if (
-      e &&
-      typeof e === "object" &&
-      "status" in e &&
-      typeof e.status === "number"
-    ) {
-      statusCode = e.status;
-    }
+    const statusCode = (err as { status?: number })?.status ?? 500;
 
     return new Response(JSON.stringify({ error: errorMessage }), {
       status: statusCode,

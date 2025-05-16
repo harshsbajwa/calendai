@@ -47,10 +47,10 @@ function ChatMessageBubble({
         </div>
       )}
       <div className={bubbleClasses}>
-        {message.content.split("\n").map((line, i) => (
+        {message.content.split("\n").map((line, i, arr) => (
           <span key={i}>
             {line}
-            {i !== message.content.split("\n").length - 1 && <br />}
+            {i !== arr.length - 1 && <br />}
           </span>
         ))}
       </div>
@@ -98,10 +98,36 @@ export function AIChatPanel({ isExpanded, toggleChatPanel }: AIChatPanelProps) {
     }
   }, [isExpanded]);
 
+  const ToggleButton = (
+    <TooltipProvider delayDuration={100}>
+      <Tooltip>
+        <TooltipTrigger asChild>
+          <Button
+            variant="ghost"
+            size="icon"
+            className="group h-8 w-8 shrink-0"
+            onClick={(e) => {
+              e.stopPropagation();
+              toggleChatPanel();
+            }}
+            aria-label={isExpanded ? "Collapse Chat" : "Expand Chat"}
+          >
+            <Sparkles className="h-4 w-4 pointer-events-none transition-transform duration-200 group-hover:scale-110" />
+          </Button>
+        </TooltipTrigger>
+        <TooltipContent side={isExpanded ? "bottom" : "left"}>
+          {" "}
+          {/* Tooltip side changes based on state */}
+          <p>{isExpanded ? "Collapse Chat" : "Expand Chat"}</p>
+        </TooltipContent>
+      </Tooltip>
+    </TooltipProvider>
+  );
+
   if (isExpanded) {
     return (
       <div className="flex h-full flex-col bg-transparent">
-        <div className="border-border/50 my-1.5 flex h-16 flex-shrink-0 items-center justify-between px-4 py-2">
+        <div className="relative my-1.5 flex h-16 flex-shrink-0 items-center justify-between border-border/50 px-4 py-2">
           <h2 className="dream-text text-2xl sm:text-4xl">Chat</h2>
           <div className="flex items-center gap-2">
             {messages.length > 0 && (
@@ -114,24 +140,7 @@ export function AIChatPanel({ isExpanded, toggleChatPanel }: AIChatPanelProps) {
                 Clear
               </Button>
             )}
-            <TooltipProvider delayDuration={100}>
-              <Tooltip>
-                <TooltipTrigger asChild>
-                  <Button
-                    variant="ghost"
-                    size="icon"
-                    className="group h-8 w-8"
-                    onClick={toggleChatPanel}
-                    aria-label="Collapse Chat"
-                  >
-                    <Sparkles className="h-5 w-5 transition-transform duration-300 group-hover:rotate-12" />
-                  </Button>
-                </TooltipTrigger>
-                <TooltipContent side="bottom">
-                  <p>Collapse Chat</p>
-                </TooltipContent>
-              </Tooltip>
-            </TooltipProvider>
+            {ToggleButton}
           </div>
         </div>
 
@@ -185,7 +194,7 @@ export function AIChatPanel({ isExpanded, toggleChatPanel }: AIChatPanelProps) {
 
         <form
           onSubmit={handleSubmit}
-          className="border-border/50 flex items-center gap-2 p-3"
+          className="flex items-center gap-2 border-t border-border/50 p-3"
         >
           <Input
             ref={inputRef}
@@ -223,25 +232,10 @@ export function AIChatPanel({ isExpanded, toggleChatPanel }: AIChatPanelProps) {
     );
   } else {
     return (
-      <div className="flex h-full w-full cursor-pointer items-start justify-end p-3 pt-3.5">
-        <TooltipProvider delayDuration={100}>
-          <Tooltip>
-            <TooltipTrigger asChild>
-              <Button
-                variant="ghost"
-                size="icon"
-                className="group h-8 w-8"
-                onClick={toggleChatPanel}
-                aria-label="Expand Chat"
-              >
-                <Sparkles className="h-5 w-5 animate-pulse transition-transform group-hover:scale-110" />
-              </Button>
-            </TooltipTrigger>
-            <TooltipContent side="left">
-              <p>Expand Chat</p>
-            </TooltipContent>
-          </Tooltip>
-        </TooltipProvider>
+      <div className="relative h-full w-full">
+        <div className="absolute top-2 left-1/2 -translate-x-1/2 z-10">
+          {ToggleButton}
+        </div>
       </div>
     );
   }
