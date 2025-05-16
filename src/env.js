@@ -9,11 +9,14 @@ export const env = createEnv({
   server: {
     AUTH_SECRET:
       process.env.NODE_ENV === "production"
-        ? z.string()
+        ? z.string().min(1)
         : z.string().optional(),
-    AUTH_DISCORD_ID: z.string(),
-    AUTH_DISCORD_SECRET: z.string(),
+    AUTH_GOOGLE_ID: z.string().min(1),
+    AUTH_GOOGLE_SECRET: z.string().min(1),
+    AUTH_DISCORD_ID: z.string().min(1),
+    AUTH_DISCORD_SECRET: z.string().min(1),
     DATABASE_URL: z.string().url(),
+    AUTH_URL: z.string().url().optional(),
     OPENROUTER_API_KEY: z.string().min(1),
     OPENROUTER_SITE_URL: z.string().url().optional(),
     OPENROUTER_SITE_NAME: z.string().optional(),
@@ -37,9 +40,12 @@ export const env = createEnv({
    */
   runtimeEnv: {
     AUTH_SECRET: process.env.AUTH_SECRET,
+    AUTH_GOOGLE_ID: process.env.AUTH_GOOGLE_ID,
+    AUTH_GOOGLE_SECRET: process.env.AUTH_GOOGLE_SECRET,
     AUTH_DISCORD_ID: process.env.AUTH_DISCORD_ID,
     AUTH_DISCORD_SECRET: process.env.AUTH_DISCORD_SECRET,
     DATABASE_URL: process.env.DATABASE_URL,
+    AUTH_URL: process.env.AUTH_URL,
     OPENROUTER_API_KEY: process.env.OPENROUTER_API_KEY,
     OPENROUTER_SITE_URL: process.env.OPENROUTER_SITE_URL,
     OPENROUTER_SITE_NAME: process.env.OPENROUTER_SITE_NAME,
