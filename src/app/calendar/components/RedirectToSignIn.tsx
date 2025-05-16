@@ -1,14 +1,13 @@
 "use client";
 
-import React, { useEffect } from "react";
+import type React from "react";
+import { useEffect } from "react";
 
 const RedirectToSignIn: React.FC = () => {
   useEffect(() => {
     window.location.href = "/api/auth/signin";
   }, []);
-  return (
-    <div className="bg-background text-foreground flex h-screen w-screen items-center justify-center" />
-  );
+  return null;
 };
 
 export default RedirectToSignIn;

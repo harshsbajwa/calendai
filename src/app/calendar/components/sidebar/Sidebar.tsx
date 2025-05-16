@@ -51,7 +51,7 @@ const Sidebar: React.FC<SidebarProps> = ({
       className={cn(
         "group relative hidden h-full flex-shrink-0 flex-col justify-between border-r shadow-lg transition-all duration-300 ease-in-out md:flex",
         "border-white/10 dark:border-black/20",
-        "isolate bg-glass-sidebar ring-1 ring-black/5",
+        "bg-glass-sidebar isolate ring-1 ring-black/5",
         "backdrop-blur-[12px] backdrop-saturate-150",
         "rounded-tr-2xl rounded-br-2xl",
         isExpanded ? sidebarExpandedWidth : sidebarCollapsedWidth,
@@ -65,7 +65,7 @@ const Sidebar: React.FC<SidebarProps> = ({
         isExpanded={isExpanded}
         toggleSidebar={toggleSidebar}
         {...props}
-        className={cn("bg-transparent")} 
+        className={cn("bg-transparent")}
       />
     </aside>
   );

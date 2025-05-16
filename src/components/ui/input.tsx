@@ -26,46 +26,44 @@ type TextareaElementSpecificProps =
 export type InputProps = BaseElementProps &
   (InputElementSpecificProps | TextareaElementSpecificProps);
 
-function Input({ className, as = "input", ...props }: InputProps) {
-  // Base classes applied to both input and textarea
+// Use React.forwardRef to allow the component to receive a ref and forward it to the DOM element
+const Input = React.forwardRef<
+  HTMLInputElement | HTMLTextAreaElement, // Union of possible ref types
+  InputProps
+>(({ className, as = "input", ...props }, ref) => {
   const baseClasses = cn(
     "placeholder:text-muted-foreground selection:bg-primary selection:text-primary-foreground dark:bg-input/30 border-input flex w-full min-w-0 rounded-md border bg-transparent px-3 py-1 text-base shadow-xs transition-[color,box-shadow] outline-none disabled:pointer-events-none disabled:cursor-not-allowed disabled:opacity-50 md:text-sm",
     "focus-visible:border-ring focus-visible:ring-ring/50 focus-visible:ring-[3px]",
     "aria-invalid:ring-destructive/20 dark:aria-invalid:ring-destructive/40 aria-invalid:border-destructive",
-    // Conditional styling based on the component type
     as === "input"
-      ? "h-9 file:h-7 file:text-foreground file:inline-flex file:border-0 file:bg-transparent file:text-sm file:font-medium" // Input specific styles
-      : "min-h-9 py-2", // Textarea specific styles (adjust height/padding)
-    className, // Allow overriding classes
+      ? "h-9 file:h-7 file:text-foreground file:inline-flex file:border-0 file:bg-transparent file:text-sm file:font-medium"
+      : "min-h-9 py-2",
+    className,
   );
 
-  // Render based on the 'as' prop using the discriminated union
   if (as === "textarea") {
-    // Props are now correctly typed as TextareaElementSpecificProps
-    // We can safely cast the spread props after separating the discriminator
     const { as: _, ...rest } = props as TextareaElementSpecificProps;
     return (
       <textarea
         data-slot="input"
         className={baseClasses}
-        {...rest} // Spread the correctly typed textarea props
+        ref={ref as React.Ref<HTMLTextAreaElement>} // Cast ref
+        {...rest}
       />
     );
   }
 
-  // Default to input element
-  // Props are now correctly typed as InputElementSpecificProps
-  // We can safely cast the spread props
   const { as: _, ...rest } = props as InputElementSpecificProps;
   return (
     <input
       data-slot="input"
       className={baseClasses}
-      {...rest} // Spread the correctly typed input props
-      // Explicitly set type, defaulting to 'text' if not provided
+      ref={ref as React.Ref<HTMLInputElement>} // Cast ref
+      {...rest}
       type={rest.type ?? "text"}
     />
   );
-}
+});
+Input.displayName = "Input"; // Good practice for components using forwardRef
 
 export { Input };

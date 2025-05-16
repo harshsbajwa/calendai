@@ -1,7 +1,8 @@
 import { useState, useCallback, useEffect, useRef } from "react";
 import { agendaPanelCollapsedWidth } from "~/app/calendar/utils/utils";
 
-const agendaCollapsedWidthPixels = parseInt(agendaPanelCollapsedWidth.replace('w-', '')) * 4;
+const agendaCollapsedWidthPixels =
+  parseInt(agendaPanelCollapsedWidth.replace("w-", "")) * 4;
 
 export function useResizablePanels(
   initialMainPanelWidthPercent = 60,
@@ -18,15 +19,18 @@ export function useResizablePanels(
   const [isResizing, setIsResizing] = useState(false);
   const containerRef = useRef<HTMLDivElement | null>(null);
 
-  const startResizing = useCallback((e: React.MouseEvent | React.TouchEvent) => {
-    if ('touches' in e) {
-    } else {
-      e.preventDefault();
-    }
-    setIsResizing(true);
-    document.body.style.cursor = "col-resize";
-    document.body.style.userSelect = "none";
-  }, []);
+  const startResizing = useCallback(
+    (e: React.MouseEvent | React.TouchEvent) => {
+      if ("touches" in e) {
+      } else {
+        e.preventDefault();
+      }
+      setIsResizing(true);
+      document.body.style.cursor = "col-resize";
+      document.body.style.userSelect = "none";
+    },
+    [],
+  );
 
   const stopResizing = useCallback(() => {
     if (isResizing) {
@@ -43,7 +47,8 @@ export function useResizablePanels(
       const containerRect = containerRef.current.getBoundingClientRect();
       const resizerWidth = 8;
 
-      let newMainPanelAbsoluteWidth = clientX - containerRect.left - resizerWidth / 2;
+      let newMainPanelAbsoluteWidth =
+        clientX - containerRect.left - resizerWidth / 2;
 
       newMainPanelAbsoluteWidth = Math.max(
         minMainPanelPixelWidth,
@@ -54,7 +59,8 @@ export function useResizablePanels(
         newMainPanelAbsoluteWidth,
       );
 
-      const newSidePanelAbsoluteWidth = containerRect.width - newMainPanelAbsoluteWidth - resizerWidth;
+      const newSidePanelAbsoluteWidth =
+        containerRect.width - newMainPanelAbsoluteWidth - resizerWidth;
 
       if (containerRect.width > 0) {
         setMainPanelFlexBasis(`${newMainPanelAbsoluteWidth}px`);
@@ -84,7 +90,9 @@ export function useResizablePanels(
     if (isResizing) {
       document.addEventListener("mousemove", handleMouseMove);
       document.addEventListener("mouseup", stopResizing);
-      document.addEventListener("touchmove", handleTouchMove, { passive: false });
+      document.addEventListener("touchmove", handleTouchMove, {
+        passive: false,
+      });
       document.addEventListener("touchend", stopResizing);
       document.addEventListener("mouseleave", stopResizing);
     } else {
@@ -101,9 +109,9 @@ export function useResizablePanels(
       document.removeEventListener("touchend", stopResizing);
       document.removeEventListener("mouseleave", stopResizing);
       if (isResizing) {
-           document.body.style.cursor = "";
-           document.body.style.userSelect = "";
-       }
+        document.body.style.cursor = "";
+        document.body.style.userSelect = "";
+      }
     };
   }, [isResizing, handleMouseMove, stopResizing, handleTouchMove]);
 

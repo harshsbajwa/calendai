@@ -1,7 +1,13 @@
 "use client";
 
 import React, { useState, useEffect, useCallback, useMemo } from "react";
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "~/components/ui/dialog";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogDescription,
+} from "~/components/ui/dialog";
 import { Input } from "~/components/ui/input";
 import { api } from "~/trpc/react";
 import { Search as SearchIconCmd, Calendar, Clock, MapPin } from "lucide-react";
@@ -100,7 +106,9 @@ const CommandPalette: React.FC<CommandPaletteProps> = ({
       >
         <DialogHeader className="border-border border-b p-4">
           <DialogTitle className="sr-only">Command Palette</DialogTitle>
-          <DialogDescription className="sr-only">Search for events or type commands.</DialogDescription>
+          <DialogDescription className="sr-only">
+            Search for events or type commands.
+          </DialogDescription>
           <div className="relative flex items-center">
             <SearchIconCmd className="text-muted-foreground absolute left-3 h-5 w-5" />
             <Input

@@ -34,8 +34,10 @@ import { Label } from "~/components/ui/label";
 import UpcomingEventsView from "./UpcomingEventsView";
 import SidebarFooterActions from "./SidebarFooterActions";
 import ManageCalendarsDialog from "./ManageCalendarsDialog";
-import type { CalendarEvent, UserCalendar as UserCalendarType } from "~/app/calendar/utils/utils";
-
+import type {
+  CalendarEvent,
+  UserCalendar as UserCalendarType,
+} from "~/app/calendar/utils/utils";
 
 const sharedGradientButtonStyle = cn(
   "bg-gradient-to-r dark:bg-white/5 isolate bg-white/30 ring-black/5",
@@ -48,13 +50,23 @@ const sharedGradientButtonStyle = cn(
   "before:[transition:background-position_0s_ease] hover:before:bg-[position:-100%_0,0_0] hover:before:duration-[1500ms]",
 );
 
-const SkeletonPlaceholder: React.FC<{ className?: string; count?: number, height?: string, width?: string }> = ({ className, count = 1, height = 'h-4', width = 'w-full' }) => {
+const SkeletonPlaceholder: React.FC<{
+  className?: string;
+  count?: number;
+  height?: string;
+  width?: string;
+}> = ({ className, count = 1, height = "h-4", width = "w-full" }) => {
   return (
     <>
       {Array.from({ length: count }).map((_, i) => (
         <div
           key={i}
-          className={cn("animate-pulse rounded-md bg-muted/50 dark:bg-muted/30", height, width, className)}
+          className={cn(
+            "bg-muted/50 dark:bg-muted/30 animate-pulse rounded-md",
+            height,
+            width,
+            className,
+          )}
         />
       ))}
     </>
@@ -97,7 +109,7 @@ const SidebarContent: React.FC<SidebarContentProps> = ({
     api.userCalendar.getAll.useQuery();
   const utils = api.useUtils();
 
-  const showCalendarSkeletons = isLoadingUserCalendarsQuery && (!userCalendars || userCalendars.length === 0);
+  const showCalendarSkeletons = isLoadingUserCalendarsQuery && !userCalendars;
 
   const firstDayOfMonth = startOfMonth(currentDate);
   const lastDayOfMonth = endOfMonth(currentDate);
@@ -145,7 +157,7 @@ const SidebarContent: React.FC<SidebarContentProps> = ({
       >
         {(isExpanded || isMobile) && (
           <div className="ml-1 flex h-[40px] items-center">
-            <h1 className="font-serif text-3xl font-bold text-primary select-none">
+            <h1 className="dream-text text-5xl">
               calendai
             </h1>
           </div>
@@ -350,35 +362,39 @@ const SidebarContent: React.FC<SidebarContentProps> = ({
                 <SkeletonPlaceholder count={3} height="h-6" width="w-full" />
               </div>
             )}
-            {!showCalendarSkeletons && userCalendars?.map((cal) => (
-              <div
-                key={cal.id}
-                className="hover:bg-accent flex cursor-pointer items-center gap-2.5 rounded px-1.5 py-1.5"
-                onClick={(e) => e.stopPropagation()} // Allows clicking checkbox without toggling sidebar
-                role="group"
-              >
-                <Checkbox
-                  id={`cal-filter-${cal.id}`}
-                  checked={selectedCalendarIds.includes(cal.id)}
-                  onCheckedChange={(checked) =>
-                    handleCalendarCheckboxChange(cal.id, !!checked)
-                  }
-                  className="border-muted-foreground data-[state=checked]:bg-primary data-[state=checked]:border-primary h-4 w-4"
-                  aria-label={`Toggle visibility for ${cal.name} calendar in view`}
-                />
+            {!showCalendarSkeletons &&
+              userCalendars?.map((cal) => (
                 <div
-                  className={cn("h-3 w-3 flex-shrink-0 rounded-sm", cal.color)}
-                ></div>
-                <Label
-                  htmlFor={`cal-filter-${cal.id}`}
-                  className="text-foreground/90 flex-grow cursor-pointer truncate text-sm font-normal"
+                  key={cal.id}
+                  className="hover:bg-accent flex cursor-pointer items-center gap-2.5 rounded px-1.5 py-1.5"
+                  onClick={(e) => e.stopPropagation()} // Allows clicking checkbox without toggling sidebar
+                  role="group"
                 >
-                  {cal.name}
-                </Label>
-              </div>
-            ))}
-            {!showCalendarSkeletons && (!userCalendars || userCalendars.length === 0) &&
-               (
+                  <Checkbox
+                    id={`cal-filter-${cal.id}`}
+                    checked={selectedCalendarIds.includes(cal.id)}
+                    onCheckedChange={(checked) =>
+                      handleCalendarCheckboxChange(cal.id, !!checked)
+                    }
+                    className="border-muted-foreground data-[state=checked]:bg-primary data-[state=checked]:border-primary h-4 w-4"
+                    aria-label={`Toggle visibility for ${cal.name} calendar in view`}
+                  />
+                  <div
+                    className={cn(
+                      "h-3 w-3 flex-shrink-0 rounded-sm",
+                      cal.color,
+                    )}
+                  ></div>
+                  <Label
+                    htmlFor={`cal-filter-${cal.id}`}
+                    className="text-foreground/90 flex-grow cursor-pointer truncate text-sm font-normal"
+                  >
+                    {cal.name}
+                  </Label>
+                </div>
+              ))}
+            {!showCalendarSkeletons &&
+              (!userCalendars || userCalendars.length === 0) && (
                 <p className="text-muted-foreground px-1 text-xs italic">
                   No calendars created yet. Click edit to add.
                 </p>

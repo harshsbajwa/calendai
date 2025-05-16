@@ -62,23 +62,22 @@ export const eventRouter = createTRPCRouter({
           });
         }
       } else {
-          // If no calendar ID is provided, find or create a default calendar for the user
-          let defaultCalendar = await ctx.db.userCalendar.findFirst({
-              where: { userId: ctx.session.user.id, name: "My Calendar" } // Or your default name logic
+        // If no calendar ID is provided, find or create a default calendar for the user
+        let defaultCalendar = await ctx.db.userCalendar.findFirst({
+          where: { userId: ctx.session.user.id, name: "My Calendar" }, // Or your default name logic
+        });
+        if (!defaultCalendar) {
+          defaultCalendar = await ctx.db.userCalendar.create({
+            data: {
+              name: "My Calendar",
+              userId: ctx.session.user.id,
+              color: "bg-blue-600", // Default color
+              isVisible: true,
+            },
           });
-          if (!defaultCalendar) {
-              defaultCalendar = await ctx.db.userCalendar.create({
-                  data: {
-                      name: "My Calendar",
-                      userId: ctx.session.user.id,
-                      color: "bg-blue-600", // Default color
-                      isVisible: true
-                  }
-              });
-          }
-          input.userCalendarId = defaultCalendar.id;
+        }
+        input.userCalendarId = defaultCalendar.id;
       }
-
 
       const event = await ctx.db.event.create({
         data: {
@@ -202,7 +201,7 @@ export const eventRouter = createTRPCRouter({
       if (!query) {
         return [];
       }
-      
+
       // Use 'contains' for standard substring search
       const events = await ctx.db.event.findMany({
         where: {

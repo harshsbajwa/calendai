@@ -14,6 +14,9 @@ export const env = createEnv({
     AUTH_DISCORD_ID: z.string(),
     AUTH_DISCORD_SECRET: z.string(),
     DATABASE_URL: z.string().url(),
+    OPENROUTER_API_KEY: z.string().min(1),
+    OPENROUTER_SITE_URL: z.string().url().optional(),
+    OPENROUTER_SITE_NAME: z.string().optional(),
     NODE_ENV: z
       .enum(["development", "test", "production"])
       .default("development"),
@@ -37,6 +40,9 @@ export const env = createEnv({
     AUTH_DISCORD_ID: process.env.AUTH_DISCORD_ID,
     AUTH_DISCORD_SECRET: process.env.AUTH_DISCORD_SECRET,
     DATABASE_URL: process.env.DATABASE_URL,
+    OPENROUTER_API_KEY: process.env.OPENROUTER_API_KEY,
+    OPENROUTER_SITE_URL: process.env.OPENROUTER_SITE_URL,
+    OPENROUTER_SITE_NAME: process.env.OPENROUTER_SITE_NAME,
     NODE_ENV: process.env.NODE_ENV,
   },
   /**

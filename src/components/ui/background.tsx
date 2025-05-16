@@ -1,30 +1,30 @@
 "use client";
 
-import React, { useEffect, useRef } from 'react';
-import * as THREE from 'three';
-import { EffectComposer } from 'three/examples/jsm/postprocessing/EffectComposer.js';
-import { RenderPass } from 'three/examples/jsm/postprocessing/RenderPass.js';
-import { UnrealBloomPass } from 'three/examples/jsm/postprocessing/UnrealBloomPass.js';
-import { ShaderPass } from 'three/examples/jsm/postprocessing/ShaderPass.js';
+import React, { useEffect, useRef } from "react";
+import * as THREE from "three";
+import { EffectComposer } from "three/examples/jsm/postprocessing/EffectComposer.js";
+import { RenderPass } from "three/examples/jsm/postprocessing/RenderPass.js";
+import { UnrealBloomPass } from "three/examples/jsm/postprocessing/UnrealBloomPass.js";
+import { ShaderPass } from "three/examples/jsm/postprocessing/ShaderPass.js";
 
 const Background: React.FC = () => {
-    const canvasRef = useRef<HTMLCanvasElement>(null);
-    const containerRef = useRef<HTMLDivElement>(null);
-    const animationFrameIdRef = useRef<number | null>(null);
+  const canvasRef = useRef<HTMLCanvasElement>(null);
+  const containerRef = useRef<HTMLDivElement>(null);
+  const animationFrameIdRef = useRef<number | null>(null);
 
-    useEffect(() => {
-        if (!canvasRef.current || !containerRef.current) return;
+  useEffect(() => {
+    if (!canvasRef.current || !containerRef.current) return;
 
-        let scene: THREE.Scene;
-        let camera: THREE.PerspectiveCamera;
-        let renderer: THREE.WebGLRenderer;
-        let composer: EffectComposer;
-        let backgroundMaterial: THREE.ShaderMaterial;
-        let backgroundPlane: THREE.Mesh;
-        let backgroundPlaneGeometry: THREE.PlaneGeometry;
-        const clock = new THREE.Clock();
+    let scene: THREE.Scene;
+    let camera: THREE.PerspectiveCamera;
+    let renderer: THREE.WebGLRenderer;
+    let composer: EffectComposer;
+    let backgroundMaterial: THREE.ShaderMaterial;
+    let backgroundPlane: THREE.Mesh;
+    let backgroundPlaneGeometry: THREE.PlaneGeometry;
+    const clock = new THREE.Clock();
 
-        const vertexShader = `
+    const vertexShader = `
             varying vec2 vUv;
             void main() {
                 vUv = uv;
@@ -32,7 +32,7 @@ const Background: React.FC = () => {
             }
         `;
 
-        const fragmentShader = `
+    const fragmentShader = `
             uniform vec2 u_resolution;
             uniform float u_time;
             varying vec2 vUv;
@@ -132,19 +132,19 @@ const Background: React.FC = () => {
             }
         `;
 
-        const VignetteShader = {
-            uniforms: {
-                "tDiffuse": { value: null },
-                "offset":   { value: 0.95 },
-                "darkness": { value: 0.5 }
-            },
-            vertexShader: `
+    const VignetteShader = {
+      uniforms: {
+        tDiffuse: { value: null },
+        offset: { value: 0.95 },
+        darkness: { value: 0.5 },
+      },
+      vertexShader: `
                 varying vec2 vUv;
                 void main() {
                     vUv = uv;
                     gl_Position = projectionMatrix * modelViewMatrix * vec4( position, 1.0 );
                 }`,
-            fragmentShader: `
+      fragmentShader: `
                 uniform float offset;
                 uniform float darkness;
                 uniform sampler2D tDiffuse;
@@ -157,138 +157,158 @@ const Background: React.FC = () => {
                     // The vignette will naturally become elliptical due to using raw UV length
                     float vignette = smoothstep(offset * 0.2, offset * 0.7, len);
                     gl_FragColor = vec4(texel.rgb * (1.0 - vignette * darkness), texel.a);
-                }`
-        };
+                }`,
+    };
 
-        function getFrustumSizeAtDistance(camera: THREE.PerspectiveCamera, distance: number) {
-            const vFOV = THREE.MathUtils.degToRad(camera.fov);
-            const height = 2 * Math.tan(vFOV / 2) * distance;
-            const width = height * camera.aspect;
-            return { width, height };
+    function getFrustumSizeAtDistance(
+      camera: THREE.PerspectiveCamera,
+      distance: number,
+    ) {
+      const vFOV = THREE.MathUtils.degToRad(camera.fov);
+      const height = 2 * Math.tan(vFOV / 2) * distance;
+      const width = height * camera.aspect;
+      return { width, height };
+    }
+
+    function updateBackgroundPlaneScale() {
+      if (!camera || !backgroundPlane) return;
+      const distance = Math.abs(camera.position.z - backgroundPlane.position.z);
+      const frustumSize = getFrustumSizeAtDistance(camera, distance);
+      backgroundPlane.scale.set(
+        frustumSize.width / 2,
+        frustumSize.height / 2,
+        1,
+      );
+    }
+
+    function init() {
+      scene = new THREE.Scene();
+      camera = new THREE.PerspectiveCamera(
+        75,
+        window.innerWidth / window.innerHeight,
+        0.1,
+        100,
+      );
+      camera.position.z = 1;
+
+      renderer = new THREE.WebGLRenderer({
+        canvas: canvasRef.current!,
+        antialias: false,
+        powerPreference: "low-power",
+      });
+      renderer.setSize(window.innerWidth, window.innerHeight);
+      renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+
+      backgroundPlaneGeometry = new THREE.PlaneGeometry(2, 2);
+      backgroundMaterial = new THREE.ShaderMaterial({
+        vertexShader: vertexShader,
+        fragmentShader: fragmentShader,
+        uniforms: {
+          u_time: { value: 0.0 },
+          u_resolution: {
+            value: new THREE.Vector2(window.innerWidth, window.innerHeight),
+          },
+        },
+        depthWrite: false,
+        depthTest: false,
+      });
+      backgroundPlane = new THREE.Mesh(
+        backgroundPlaneGeometry,
+        backgroundMaterial,
+      ); // Assign to the outer scope variable
+      scene.add(backgroundPlane);
+
+      updateBackgroundPlaneScale();
+
+      composer = new EffectComposer(renderer);
+      const renderPass = new RenderPass(scene, camera);
+      composer.addPass(renderPass);
+
+      const bloomPass = new UnrealBloomPass(
+        new THREE.Vector2(window.innerWidth, window.innerHeight),
+        0.3,
+        0.5,
+        0.8,
+      );
+      composer.addPass(bloomPass);
+
+      const vignettePass = new ShaderPass(VignetteShader);
+      composer.addPass(vignettePass);
+
+      window.addEventListener("resize", onWindowResize, false);
+      animate();
+    }
+
+    function onWindowResize() {
+      camera.aspect = window.innerWidth / window.innerHeight;
+      camera.updateProjectionMatrix();
+
+      renderer.setSize(window.innerWidth, window.innerHeight);
+      renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+
+      composer.setSize(window.innerWidth, window.innerHeight);
+
+      if (backgroundMaterial) {
+        backgroundMaterial.uniforms.u_resolution?.value.set(
+          window.innerWidth,
+          window.innerHeight,
+        );
+      }
+      updateBackgroundPlaneScale();
+    }
+
+    function animate() {
+      animationFrameIdRef.current = requestAnimationFrame(animate);
+      if (backgroundMaterial?.uniforms.u_time) {
+        const elapsedTime = clock.getElapsedTime();
+        backgroundMaterial.uniforms.u_time.value = elapsedTime;
+      }
+      if (composer) {
+        composer.render();
+      }
+    }
+
+    init();
+
+    return () => {
+      window.removeEventListener("resize", onWindowResize);
+      if (animationFrameIdRef.current) {
+        cancelAnimationFrame(animationFrameIdRef.current);
+      }
+
+      if (renderer) renderer.dispose();
+      if (backgroundMaterial) backgroundMaterial.dispose();
+      if (backgroundPlaneGeometry) backgroundPlaneGeometry.dispose();
+
+      composer?.passes.forEach((pass) => {
+        if (typeof (pass as any).dispose === "function") {
+          (pass as any).dispose();
         }
+      });
 
-        function updateBackgroundPlaneScale() {
-            if (!camera || !backgroundPlane) return;
-            const distance = Math.abs(camera.position.z - backgroundPlane.position.z);
-            const frustumSize = getFrustumSizeAtDistance(camera, distance);
-            backgroundPlane.scale.set(frustumSize.width / 2, frustumSize.height / 2, 1);
-        }
-
-        function init() {
-            scene = new THREE.Scene();
-            camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 100);
-            camera.position.z = 1;
-
-            renderer = new THREE.WebGLRenderer({
-                canvas: canvasRef.current!,
-                antialias: false,
-                powerPreference: 'low-power'
-            });
-            renderer.setSize(window.innerWidth, window.innerHeight);
-            renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
-
-            backgroundPlaneGeometry = new THREE.PlaneGeometry(2, 2);
-            backgroundMaterial = new THREE.ShaderMaterial({
-                vertexShader: vertexShader,
-                fragmentShader: fragmentShader,
-                uniforms: {
-                    u_time: { value: 0.0 },
-                    u_resolution: { value: new THREE.Vector2(window.innerWidth, window.innerHeight) }
-                },
-                depthWrite: false,
-                depthTest: false
-            });
-            backgroundPlane = new THREE.Mesh(backgroundPlaneGeometry, backgroundMaterial); // Assign to the outer scope variable
-            scene.add(backgroundPlane);
-
-            updateBackgroundPlaneScale();
-
-            composer = new EffectComposer(renderer);
-            const renderPass = new RenderPass(scene, camera);
-            composer.addPass(renderPass);
-
-            const bloomPass = new UnrealBloomPass(
-                new THREE.Vector2(window.innerWidth, window.innerHeight),
-                0.3,
-                0.5,
-                0.8
-            );
-            composer.addPass(bloomPass);
-
-            const vignettePass = new ShaderPass(VignetteShader);
-            composer.addPass(vignettePass);
-
-            window.addEventListener('resize', onWindowResize, false);
-            animate();
-        }
-
-        function onWindowResize() {
-            camera.aspect = window.innerWidth / window.innerHeight;
-            camera.updateProjectionMatrix();
-
-            renderer.setSize(window.innerWidth, window.innerHeight);
-            renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
-
-            composer.setSize(window.innerWidth, window.innerHeight);
-
-            if (backgroundMaterial) {
-                backgroundMaterial.uniforms.u_resolution.value.set(window.innerWidth, window.innerHeight);
+      if (scene) {
+        scene.traverse((object) => {
+          if (object instanceof THREE.Mesh) {
+            if (object.geometry) object.geometry.dispose();
+            if (object.material) {
+              if (Array.isArray(object.material)) {
+                object.material.forEach((material) => material.dispose());
+              } else {
+                (object.material as THREE.Material).dispose();
+              }
             }
-            updateBackgroundPlaneScale();
-        }
+          }
+        });
+        scene.clear();
+      }
+    };
+  }, []);
 
-        function animate() {
-            animationFrameIdRef.current = requestAnimationFrame(animate);
-            const elapsedTime = clock.getElapsedTime();
-            if (backgroundMaterial) {
-                backgroundMaterial.uniforms.u_time.value = elapsedTime;
-            }
-            if (composer) {
-                composer.render();
-            }
-        }
-
-        init();
-
-        return () => {
-            window.removeEventListener('resize', onWindowResize);
-            if (animationFrameIdRef.current) {
-                cancelAnimationFrame(animationFrameIdRef.current);
-            }
-
-            if (renderer) renderer.dispose();
-            if (backgroundMaterial) backgroundMaterial.dispose();
-            if (backgroundPlaneGeometry) backgroundPlaneGeometry.dispose();
-
-            composer?.passes.forEach(pass => {
-                if (typeof (pass as any).dispose === 'function') {
-                    (pass as any).dispose();
-                }
-            });
-
-            if (scene) {
-                scene.traverse(object => {
-                    if (object instanceof THREE.Mesh) {
-                        if (object.geometry) object.geometry.dispose();
-                        if (object.material) {
-                            if (Array.isArray(object.material)) {
-                                object.material.forEach(material => material.dispose());
-                            } else {
-                                (object.material as THREE.Material).dispose();
-                            }
-                        }
-                    }
-                });
-                scene.clear();
-            }
-        };
-    }, []);
-
-    return (
-        <div ref={containerRef} className="fixed inset-0 -z-10 h-full w-full">
-            <canvas ref={canvasRef} className="block h-full w-full" />
-        </div>
-    );
+  return (
+    <div ref={containerRef} className="fixed inset-0 -z-10 h-full w-full">
+      <canvas ref={canvasRef} className="block h-full w-full" />
+    </div>
+  );
 };
 
 export default Background;

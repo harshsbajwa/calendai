@@ -61,7 +61,7 @@ const EventForm: React.FC<EventFormProps> = ({
     return format(roundedTime, "HH:mm");
   }, [event, defaultStartTime]);
 
-  const [title, setTitle] = useState(event?.title ?? "New Event");
+  const [title, setTitle] = useState(event?.title ?? "");
   const [description, setDescription] = useState(event?.description ?? "");
   const [location, setLocation] = useState(event?.location ?? "");
   const [startDateString, setStartDateString] = useState<string>(initialDate);
@@ -102,7 +102,7 @@ const EventForm: React.FC<EventFormProps> = ({
       setEndTime(
         format(add(parse(sTime, "HH:mm", baseDate), { hours: 1 }), "HH:mm"),
       );
-      setTitle("New Event");
+      setTitle("");
     }
   }, [event, defaultDate, defaultStartTime, userCalendars]);
 
@@ -115,8 +115,7 @@ const EventForm: React.FC<EventFormProps> = ({
       if (!isAfter(parsedEndTime, parsedStartTime)) {
         setEndTime(format(add(parsedStartTime, { hours: 1 }), "HH:mm"));
       }
-    } catch (_) {
-    }
+    } catch (_) {}
   }, [startTime, endTime, startDateString]);
 
   const getCombinedDateTime = (
