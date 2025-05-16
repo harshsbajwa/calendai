@@ -20,9 +20,7 @@ import {
   Search as SearchIcon,
   ChevronDown,
   GripVertical,
-  PanelRightClose, // ADDED
-  PanelRightOpen, // ADDED
-  MessageSquareText, // Alternative icon for chat panel toggle
+  Sparkles,
 } from "lucide-react";
 import {
   add,
@@ -32,13 +30,11 @@ import {
   startOfMonth,
   startOfWeek,
   endOfWeek,
-  // addHours, // Not directly used for grid creation popover anymore
   subDays,
   addDays,
   endOfDay,
   startOfDay,
   setHours,
-  setMinutes,
   addMinutes,
 } from "date-fns";
 import { api } from "~/trpc/react";
@@ -74,14 +70,15 @@ import SidebarContent from "./components/sidebar/SidebarContent";
 import DayView from "./components/views/DayView";
 import WeekView from "./components/views/WeekView";
 import MonthView from "./components/views/MonthView";
-import { AIChatPanel } from "./components/AIChatPanel"; // Updated import
+import { AIChatPanel } from "./components/AIChatPanel";
 import CreateEventDialog from "./components/dialogs_popovers/CreateEventDialog";
 import EventDetailPopover from "./components/dialogs_popovers/EventDetailPopover";
 import EventForm from "./components/dialogs_popovers/EventForm";
 import CommandPalette from "./components/CommandPalette";
 
 import {
-  agendaPanelCollapsedWidth, // This class string "w-16"
+  chatPanelCollapsedWidth,
+  chatPanelHoverWidth,
   type CalendarEvent,
   type UserCalendar as UserCalendarType,
 } from "./utils/utils";
@@ -205,7 +202,10 @@ export default function CalendarPage() {
   >("start");
 
   const [isSidebarExpanded, setIsSidebarExpanded] = useState(true);
-  const [isChatPanelExpanded, setIsChatPanelExpanded] = useState(true); // State for chat panel
+  const [isChatPanelExpanded, setIsChatPanelExpanded] = useState(true);
+  const [isChatPanelHovering, setIsChatPanelHovering] = useState(false);
+  const [isMobileChatSheetOpen, setIsMobileChatSheetOpen] = useState(false);
+
   const [isCommandPaletteOpen, setIsCommandPaletteOpen] = useState(false);
   const [temporaryEvent, setTemporaryEvent] =
     useState<Partial<CalendarEvent> | null>(null);
@@ -226,6 +226,7 @@ export default function CalendarPage() {
   const userCalendars = isDemoMode ? DEMO_USER_CALENDARS : userCalendarsData;
 
   const [selectedCalendarIds, setSelectedCalendarIds] = useState<string[]>([]);
+  const [isSheetOpen, setIsSheetOpen] = useState(false);
 
   useEffect(() => {
     if (userCalendars) {
@@ -282,7 +283,10 @@ export default function CalendarPage() {
 
   useEffect(() => {
     setIsMounted(true);
-  }, []);
+    if (!isDesktop) {
+      setIsChatPanelExpanded(false);
+    }
+  }, [isDesktop]);
 
   useEffect(() => {
     const handleKeyDown = (event: KeyboardEvent) => {
@@ -295,6 +299,8 @@ export default function CalendarPage() {
         else if (isEventPopoverOpen) setIsEventPopoverOpen(false);
         else if (isCommandPaletteOpen) setIsCommandPaletteOpen(false);
         else if (isCreateEventDialogOpen) setIsCreateEventDialogOpen(false);
+        else if (isSheetOpen) setIsSheetOpen(false);
+        else if (isMobileChatSheetOpen) setIsMobileChatSheetOpen(false);
       }
     };
     window.addEventListener("keydown", handleKeyDown);
@@ -304,6 +310,8 @@ export default function CalendarPage() {
     isEventPopoverOpen,
     isCommandPaletteOpen,
     isCreateEventDialogOpen,
+    isSheetOpen,
+    isMobileChatSheetOpen,
   ]);
 
   const determinePopoverPosition = (
@@ -327,6 +335,7 @@ export default function CalendarPage() {
     else if (spaceLeft >= popoverWidth + 10) side = "left";
     else if (spaceBottom >= popoverHeight + 10) {
       side = "bottom";
+
       if (targetRect.left + targetRect.width / 2 < popoverWidth / 2)
         align = "start";
       else if (
@@ -348,6 +357,7 @@ export default function CalendarPage() {
     } else {
       if (spaceRight > spaceLeft) side = "right";
       else side = "left";
+
       if (spaceBottom < popoverHeight && spaceTop < popoverHeight) {
         if (targetRect.bottom < viewportHeight / 2) side = "bottom";
         else side = "top";
@@ -432,7 +442,6 @@ export default function CalendarPage() {
     [],
   );
   const toggleChatPanel = useCallback(
-    // Renamed from toggleAgendaPanel
     () => setIsChatPanelExpanded((prev) => !prev),
     [],
   );
@@ -467,31 +476,23 @@ export default function CalendarPage() {
     },
   });
 
-  const minSidePanelPixelWidth = isChatPanelExpanded
-    ? 240
-    : parseInt(agendaPanelCollapsedWidth.replace("w-", "")) * 4;
-  const initialSidePanelExpandedWidth = 384; // Increased default width for chat
+  const chatPanelCollapsedWidthPx =
+    parseInt(chatPanelCollapsedWidth.replace("w-", "")) * 4;
+  const minResizableChatPanelWidth = 240;
+  const initialSidePanelExpandedWidth = 384;
 
   const {
     mainPanelStyle,
-    sidePanelStyle: resizableSidePanelStyle, // Renamed to avoid conflict
+    sidePanelStyle: resizableSidePanelStyle,
     startResizing,
     containerRef: resizableContainerRef,
     isResizing,
   } = useResizablePanels(
-    isDesktop && isChatPanelExpanded ? 65 : 100, // Adjust initial main panel based on chat panel state
+    isDesktop && isChatPanelExpanded ? 65 : 100,
     300,
-    minSidePanelPixelWidth,
+    minResizableChatPanelWidth,
     initialSidePanelExpandedWidth,
   );
-
-  // Dynamically determine side panel style based on expanded state
-  const currentSidePanelStyle = isChatPanelExpanded
-    ? resizableSidePanelStyle
-    : {
-        width: agendaPanelCollapsedWidth,
-        flexBasis: agendaPanelCollapsedWidth,
-      };
 
   useEffect(() => {
     if (sessionStatus === "unauthenticated" && !isDemoMode) {
@@ -541,7 +542,7 @@ export default function CalendarPage() {
               "bg-transparent backdrop-blur-[var(--blur-intensity-strong)]",
             )}
           >
-            {/* Left Group */}
+            {}
             <div className="flex items-center gap-2">
               <Sheet>
                 <SheetTrigger asChild>
@@ -567,7 +568,9 @@ export default function CalendarPage() {
                     }}
                     onEventClick={handleEventClick}
                     isExpanded={true}
-                    toggleSidebar={() => {}}
+                    toggleSidebar={() => {
+                      // no-op
+                    }}
                     isMobile={true}
                     className="h-full border-r-0 bg-transparent shadow-none"
                     selectedCalendarIds={selectedCalendarIds}
@@ -634,9 +637,9 @@ export default function CalendarPage() {
               </div>
             </div>
 
-            {/* Center Group (Date) */}
+            {}
             <div className="flex-grow px-6 text-center">
-              <h1 className="dream-text md:text-4xl text-xl">
+              <h1 className="dream-text text-xl md:text-4xl">
                 {format(
                   currentDate,
                   currentView === "month" ? "MMMM yyyy" : "MMMM d, yyyy",
@@ -644,40 +647,8 @@ export default function CalendarPage() {
               </h1>
             </div>
 
-            {/* Right Group */}
+            {}
             <div className="flex items-center gap-2">
-              {isDesktop /* Show Chat Panel Toggle only on Desktop */ && (
-                <Tooltip>
-                  <TooltipTrigger asChild>
-                    <Button
-                      variant="ghost"
-                      size="icon"
-                      className="h-8 w-8 flex-shrink-0"
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        toggleChatPanel();
-                      }}
-                      aria-label={
-                        isChatPanelExpanded
-                          ? "Collapse Chat Panel"
-                          : "Expand Chat Panel"
-                      }
-                      aria-expanded={isChatPanelExpanded}
-                    >
-                      {isChatPanelExpanded ? (
-                        <PanelRightClose className="h-5 w-5" />
-                      ) : (
-                        <MessageSquareText className="h-5 w-5" /> // Or PanelRightOpen
-                      )}
-                    </Button>
-                  </TooltipTrigger>
-                  <TooltipContent side="bottom">
-                    <p>
-                      {isChatPanelExpanded ? "Collapse Chat" : "Expand Chat"}
-                    </p>
-                  </TooltipContent>
-                </Tooltip>
-              )}
               <DropdownMenu>
                 <DropdownMenuTrigger asChild>
                   <Button
@@ -867,7 +838,7 @@ export default function CalendarPage() {
               )}
             </main>
 
-            {isDesktop && (
+            {isDesktop ? (
               <>
                 {isChatPanelExpanded && (
                   <div
@@ -888,19 +859,69 @@ export default function CalendarPage() {
                 )}
                 <div
                   className={cn(
+                    "flex-shrink-0",
                     "flex flex-col overflow-hidden transition-all duration-300 ease-in-out",
                     "my-3 mr-3 rounded-xl",
                     "border-2 border-white/20 dark:border-black/20",
                     "bg-glass-pane ring-1 ring-black/5 backdrop-blur-[12px] backdrop-saturate-150",
-                    isChatPanelExpanded
-                      ? "flex-none"
-                      : `flex-none ${agendaPanelCollapsedWidth}`,
+                    !isChatPanelExpanded &&
+                      (isChatPanelHovering
+                        ? chatPanelHoverWidth
+                        : chatPanelCollapsedWidth),
                   )}
-                  style={currentSidePanelStyle} // Apply dynamic style for width/flexBasis
+                  style={
+                    isChatPanelExpanded
+                      ? resizableSidePanelStyle
+                      : { minWidth: `${chatPanelCollapsedWidthPx}px` }
+                  }
+                  onMouseEnter={() => {
+                    if (!isChatPanelExpanded && isDesktop) {
+                      setIsChatPanelHovering(true);
+                    }
+                  }}
+                  onMouseLeave={() => {
+                    if (isDesktop) {
+                      setIsChatPanelHovering(false);
+                    }
+                  }}
+                  onClick={() => {
+                    if (!isChatPanelExpanded && isDesktop) {
+                      toggleChatPanel();
+                    }
+                  }}
                 >
-                  <AIChatPanel isExpanded={isChatPanelExpanded} />
+                  <AIChatPanel
+                    isExpanded={isChatPanelExpanded}
+                    toggleChatPanel={toggleChatPanel}
+                  />
                 </div>
               </>
+            ) : (
+              <Sheet
+                open={isMobileChatSheetOpen}
+                onOpenChange={setIsMobileChatSheetOpen}
+              >
+                <SheetTrigger asChild>
+                  <Button
+                    variant="default"
+                    size="icon"
+                    className="fixed right-4 bottom-4 z-50 h-14 w-14 rounded-full shadow-lg md:hidden"
+                    aria-label="Open Chat"
+                  >
+                    <Sparkles className="h-7 w-7 animate-pulse" />
+                  </Button>
+                </SheetTrigger>
+                <SheetContent
+                  side="bottom"
+                  className="h-[85vh] w-full p-0 md:hidden"
+                  onInteractOutside={(e) => e.preventDefault()}
+                >
+                  <AIChatPanel
+                    isExpanded={true}
+                    toggleChatPanel={() => setIsMobileChatSheetOpen(false)}
+                  />
+                </SheetContent>
+              </Sheet>
             )}
           </div>
         </div>
@@ -965,7 +986,7 @@ export default function CalendarPage() {
                 <h3 className="font-serif text-lg font-semibold">
                   Create Event
                 </h3>
-                {/* Close button is implicitly handled by EventForm's Cancel or Dialog close */}
+                {}
               </div>
               <div className="p-6">
                 <EventForm

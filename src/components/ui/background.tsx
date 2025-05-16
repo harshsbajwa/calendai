@@ -3,6 +3,7 @@
 import React, { useEffect, useRef } from "react";
 import * as THREE from "three";
 import { EffectComposer } from "three/examples/jsm/postprocessing/EffectComposer.js";
+import type { Pass } from "three/examples/jsm/postprocessing/Pass.js";
 import { RenderPass } from "three/examples/jsm/postprocessing/RenderPass.js";
 import { UnrealBloomPass } from "three/examples/jsm/postprocessing/UnrealBloomPass.js";
 import { ShaderPass } from "three/examples/jsm/postprocessing/ShaderPass.js";
@@ -249,7 +250,7 @@ const Background: React.FC = () => {
       composer.setSize(window.innerWidth, window.innerHeight);
 
       if (backgroundMaterial) {
-        backgroundMaterial.uniforms.u_resolution?.value.set(
+        (backgroundMaterial.uniforms.u_resolution?.value as THREE.Vector2).set(
           window.innerWidth,
           window.innerHeight,
         );
@@ -281,18 +282,21 @@ const Background: React.FC = () => {
       if (backgroundPlaneGeometry) backgroundPlaneGeometry.dispose();
 
       composer?.passes.forEach((pass) => {
-        if (typeof (pass as any).dispose === "function") {
-          (pass as any).dispose();
+        const typedPass = pass as Pass & { dispose?: () => void };
+        if (typeof typedPass.dispose === "function") {
+          typedPass.dispose();
         }
       });
 
       if (scene) {
         scene.traverse((object) => {
           if (object instanceof THREE.Mesh) {
-            if (object.geometry) object.geometry.dispose();
+            if (object.geometry) (object as THREE.Mesh).geometry.dispose();
             if (object.material) {
               if (Array.isArray(object.material)) {
-                object.material.forEach((material) => material.dispose());
+                object.material.forEach((material) =>
+                  (material as THREE.Material).dispose(),
+                );
               } else {
                 (object.material as THREE.Material).dispose();
               }

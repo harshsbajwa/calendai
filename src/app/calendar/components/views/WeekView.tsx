@@ -35,7 +35,7 @@ import {
   calculateEventPositionAndHeightForDay,
 } from "~/app/calendar/utils/utils";
 import { useMediaQuery } from "~/app/calendar/hooks/useMediaQuery";
-import { motion, type PanInfo, type Point } from "motion/react";
+import { motion, type PanInfo } from "motion/react";
 import { api } from "~/trpc/react";
 
 interface WeekViewProps {
@@ -71,24 +71,27 @@ const WeekView: React.FC<WeekViewProps> = ({
   const dragStartDataRef = useRef<{
     initialTopInColumn: number;
     initialColumnLeftInGrid: number;
-    originalDayIndex: number;
   } | null>(null);
 
   useEffect(() => {
+    const currentGridRef = gridRef.current; // Capture gridRef.current
     const calculateWidth = () => {
-      if (gridRef.current) {
-        const totalGridWidth = gridRef.current.offsetWidth;
+      if (currentGridRef) {
+        // Use captured value
+        const totalGridWidth = currentGridRef.offsetWidth;
         setDayColumnWidth(totalGridWidth / daysInWeek.length);
       }
     };
     calculateWidth();
+
     const resizeObserver = new ResizeObserver(calculateWidth);
-    if (gridRef.current) {
-      resizeObserver.observe(gridRef.current);
+    if (currentGridRef) {
+      resizeObserver.observe(currentGridRef);
     }
+
     return () => {
-      if (gridRef.current && resizeObserver) {
-        resizeObserver.unobserve(gridRef.current);
+      if (currentGridRef && resizeObserver) {
+        resizeObserver.unobserve(currentGridRef);
       }
       resizeObserver.disconnect();
     };
@@ -145,7 +148,7 @@ const WeekView: React.FC<WeekViewProps> = ({
   };
 
   const handleDragScroll = (
-    event: MouseEvent | TouchEvent | PointerEvent,
+    _event: MouseEvent | TouchEvent | PointerEvent,
     info: PanInfo,
   ) => {
     if (!containerRef.current) return;
@@ -179,15 +182,14 @@ const WeekView: React.FC<WeekViewProps> = ({
       return;
     }
 
-    const { initialTopInColumn, initialColumnLeftInGrid, originalDayIndex } =
+    const { initialTopInColumn, initialColumnLeftInGrid } =
       dragStartDataRef.current;
     dragStartDataRef.current = null;
 
     const { offset } = info;
 
-    // --- X-axis (Day) Calculation ---
+    // X-axis (Day) Calculation
     const finalEventLeftInGrid = initialColumnLeftInGrid + offset.x;
-
     let targetDayIndex = Math.round(finalEventLeftInGrid / dayColumnWidth);
     targetDayIndex = Math.max(
       0,
@@ -196,7 +198,7 @@ const WeekView: React.FC<WeekViewProps> = ({
     const targetDay = daysInWeek[targetDayIndex]!;
     const targetDayStart = startOfDay(targetDay);
 
-    // --- Y-axis (Time) Calculation ---
+    // Y-axis (Time) Calculation
     const finalTopInColumn = initialTopInColumn + offset.y;
     const durationMinutes = differenceInMinutes(
       calendarEvent.endTime,
@@ -208,17 +210,14 @@ const WeekView: React.FC<WeekViewProps> = ({
     const maxTopInColumn = hours.length * hourHeight - eventHeightPixels;
 
     let snappedTopInColumn =
-      Math.round(finalTopInColumn / hourHeight) * hourHeight;
+      Math.round(finalTopInColumn / (hourHeight / 4)) * (hourHeight / 4); // Snap to 15-min
     snappedTopInColumn = Math.max(
       0,
       Math.min(snappedTopInColumn, maxTopInColumn),
     );
 
-    const targetHourIndex = Math.max(
-      0,
-      Math.min(23, Math.round(snappedTopInColumn / hourHeight)),
-    );
-    let newStartTime = setMinutes(setHours(targetDayStart, targetHourIndex), 0);
+    const minutesFromDayStart = (snappedTopInColumn / hourHeight) * 60;
+    let newStartTime = addMinutes(targetDayStart, minutesFromDayStart);
     let newEndTime = addMinutes(newStartTime, durationMinutes);
 
     const targetDayEnd = endOfDay(targetDayStart);
@@ -263,11 +262,12 @@ const WeekView: React.FC<WeekViewProps> = ({
     const todayInView = daysInWeek.some((day) => isToday(day));
     let scrollTop: number;
 
-    if (todayInView && isSameDay(currentDate, now)) {
+    if (todayInView && isSameDay(currentDate, now) && isToday(currentDate)) {
+      // Check if current main date is today
       const currentMinute = getHours(now) * 60 + getMinutes(now);
       scrollTop = Math.max(0, (currentMinute - 30) / 60) * hourHeight;
     } else {
-      scrollTop = 8 * hourHeight;
+      scrollTop = 8 * hourHeight; // Default to 8 AM
     }
     requestAnimationFrame(() => {
       container.scrollTop = scrollTop;
@@ -279,9 +279,14 @@ const WeekView: React.FC<WeekViewProps> = ({
     hourDateTime: Date,
     e: React.MouseEvent<HTMLDivElement>,
   ) => {
+    const rect = e.currentTarget.getBoundingClientRect();
+    const offsetY = e.clientY - rect.top;
+    const minutesInHour = Math.floor((offsetY / hourHeight) * 60);
+    const preciseMinutes = Math.round(minutesInHour / 15) * 15;
+
     const clickedTime = setMinutes(
       setHours(startOfDay(day), getHours(hourDateTime)),
-      0,
+      preciseMinutes,
     );
     onGridClick(clickedTime, e.currentTarget);
   };
@@ -310,7 +315,8 @@ const WeekView: React.FC<WeekViewProps> = ({
           className={cn(
             "text-muted-foreground dark:text-dark-muted-foreground border-border/30 dark:border-dark-border/20 border-r py-2 text-center text-xs font-medium",
           )}
-        />
+        />{" "}
+        {/* Empty cell for time gutter corner */}
         {daysInWeek.map((day) => (
           <div
             key={day.toISOString()}
@@ -353,6 +359,7 @@ const WeekView: React.FC<WeekViewProps> = ({
         className="custom-scrollbar relative flex-1 overflow-x-hidden overflow-y-auto"
       >
         <div className="relative flex">
+          {/* Time Gutter */}
           <div
             className={cn(
               "border-border/30 dark:border-dark-border/20 sticky top-0 left-0 z-10 border-r",
@@ -377,9 +384,10 @@ const WeekView: React.FC<WeekViewProps> = ({
             ))}
           </div>
 
+          {/* Days Grid */}
           <div
             ref={gridRef}
-            className="grid flex-1"
+            className="grid flex-1" // Takes remaining space
             style={{ gridTemplateColumns: `repeat(${daysInWeek.length}, 1fr)` }}
           >
             {daysInWeek.map((day, dayIndex) => (
@@ -387,11 +395,12 @@ const WeekView: React.FC<WeekViewProps> = ({
                 key={day.toISOString()}
                 className={cn(
                   "border-border/30 dark:border-dark-border/20 relative border-l",
-                  dayIndex === 0 && "border-l-0",
+                  dayIndex === 0 && "border-l-0", // No left border for the first day column
                 )}
                 style={{ minHeight: `${hours.length * hourHeight}px` }}
-                data-day-index={dayIndex}
+                data-day-index={dayIndex} // For potential drag-and-drop logic
               >
+                {/* Hour slots for this day */}
                 {hours.map((hourDateTime, hourIndex) => (
                   <div
                     key={`${day.toISOString()}-h-${hourIndex}`}
@@ -411,6 +420,7 @@ const WeekView: React.FC<WeekViewProps> = ({
                   </div>
                 ))}
 
+                {/* Events for this day */}
                 {allVisibleEvents
                   .filter((event) => {
                     const eventDayStart = startOfDay(day);
@@ -467,9 +477,13 @@ const WeekView: React.FC<WeekViewProps> = ({
                         dragConstraints={gridRef}
                         dragElastic={0.05}
                         dragMomentum={false}
-                        onDragStart={(e, info) => {
-                          const eventEl = e.target as HTMLElement;
-                          const dayColumnEl = eventEl.parentElement;
+                        onDragStart={(_e, _info) => {
+                          const eventEl = _e.target as HTMLElement;
+                          // eslint-disable-next-line @typescript-eslint/no-unnecessary-type-assertion
+                          const dayColumnEl = eventEl.closest(
+                            `[data-day-index="${dayIndex}"]`,
+                          ) as HTMLElement | null;
+
                           if (
                             !dayColumnEl ||
                             !gridRef.current ||
@@ -477,25 +491,20 @@ const WeekView: React.FC<WeekViewProps> = ({
                           )
                             return;
 
-                          const eventRect = eventEl.getBoundingClientRect();
-                          const dayColumnRect =
-                            dayColumnEl.getBoundingClientRect();
-                          const gridRect =
-                            gridRef.current.getBoundingClientRect();
-
                           const initialTop = parseFloat(
                             eventEl.style.top ?? "0",
-                          ); // Top of event within its column
-                          const colLeft = dayColumnEl.offsetLeft; // Left of column within gridRef
+                          );
+                          const colLeft = dayColumnEl.offsetLeft;
 
                           dragStartDataRef.current = {
                             initialTopInColumn: initialTop,
                             initialColumnLeftInGrid: colLeft,
-                            originalDayIndex: dayIndex,
                           };
                         }}
                         onDrag={handleDragScroll}
-                        onDragEnd={(e, info) => handleDragEnd(info, safeEvent)}
+                        onDragEnd={(_e, dragInfo) =>
+                          handleDragEnd(dragInfo, safeEvent)
+                        }
                         whileDrag={{
                           scale: 1.01,
                           boxShadow: "0px 8px 16px rgba(0,0,0,0.2)",
@@ -520,10 +529,10 @@ const WeekView: React.FC<WeekViewProps> = ({
                                   "pointer-events-none border-2 border-dashed border-white/50 opacity-70",
                               )}
                               style={{ transformStyle: "preserve-3d" }}
-                              onClick={(e) =>
+                              onClick={(_e) =>
                                 !isTemporary &&
-                                onEventClick(safeEvent, e.currentTarget)
-                              }
+                                onEventClick(safeEvent, _e.currentTarget)
+                              } // Renamed
                               aria-label={
                                 isTemporary
                                   ? safeEvent.title
@@ -567,6 +576,7 @@ const WeekView: React.FC<WeekViewProps> = ({
             ))}
           </div>
 
+          {/* Current Time Indicator - ensure it spans across the grid */}
           {daysInWeek.some((day) => isToday(day)) && (
             <CurrentTimeIndicator
               hourHeight={hourHeight}

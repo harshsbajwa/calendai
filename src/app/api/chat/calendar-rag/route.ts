@@ -1,7 +1,11 @@
-import { streamText } from "ai";
-import type { CoreMessage, Message as VercelUIMessage } from "ai";
+import {
+  streamText,
+  type CoreMessage,
+  type Message as VercelUIMessage,
+} from "ai";
 import { createOpenRouter } from "@openrouter/ai-sdk-provider";
 import { format } from "date-fns";
+import type { NextRequest } from "next/server";
 
 import { auth } from "~/server/auth";
 import { db } from "~/server/db";
@@ -11,7 +15,9 @@ const openrouter = createOpenRouter({
   apiKey: env.OPENROUTER_API_KEY,
 });
 
-const openRouterModule = openrouter.chat("qwen/qwen-2.5-7b-instruct:free");
+const openRouterModule = openrouter.chat(
+  "deepseek/deepseek-r1-distill-qwen-32b:free",
+);
 
 const convertToCoreMessages = (messages: VercelUIMessage[]): CoreMessage[] => {
   const coreMessages: CoreMessage[] = [];
@@ -42,7 +48,6 @@ const convertToCoreMessages = (messages: VercelUIMessage[]): CoreMessage[] => {
     }
 
     if (coreMsg) {
-      // Final check for empty content before pushing
       if (
         typeof coreMsg.content === "string" &&
         coreMsg.content.trim() === ""
@@ -71,7 +76,11 @@ Be conversational and helpful. Use today's date: ${format(new Date(), "EEEE, MMM
 Here is the relevant calendar event context:
 ${eventContext}`;
 
-export async function POST(req: Request) {
+interface ChatRequestBody {
+  messages: VercelUIMessage[];
+}
+
+export async function POST(req: NextRequest) {
   try {
     const session = await auth();
     if (!session?.user?.id) {
@@ -81,8 +90,8 @@ export async function POST(req: Request) {
       });
     }
 
-    const { messages: vercelMessages }: { messages: VercelUIMessage[] } =
-      await req.json();
+    const requestBody = (await req.json()) as ChatRequestBody;
+    const { messages: vercelMessages } = requestBody;
 
     if (!vercelMessages || vercelMessages.length === 0) {
       return new Response(JSON.stringify({ error: "No messages provided" }), {
@@ -133,31 +142,49 @@ export async function POST(req: Request) {
       ...convertToCoreMessages(vercelMessages),
     ];
 
-    const result = await streamText({
+    const result = streamText({
       model: openRouterModule,
       messages: coreMessagesForStream,
       temperature: 0.7,
     });
 
     return result.toDataStreamResponse();
-  } catch (e: any) {
+  } catch (e: unknown) {
     console.error("Error in RAG API route:", e);
     let errorMessage = "An error occurred processing your request.";
+    let statusCode = 500;
+
     if (e instanceof Error) {
       errorMessage = e.message;
     } else if (typeof e === "string") {
       errorMessage = e;
     }
 
-    if (e.cause && typeof e.cause === "object" && "message" in e.cause) {
+    if (
+      e &&
+      typeof e === "object" &&
+      "cause" in e &&
+      e.cause &&
+      typeof e.cause === "object" &&
+      "message" in e.cause
+    ) {
       const causeMessage = (e.cause as { message?: unknown }).message;
       if (typeof causeMessage === "string") {
         errorMessage = `${errorMessage} Cause: ${causeMessage}`;
       }
     }
 
+    if (
+      e &&
+      typeof e === "object" &&
+      "status" in e &&
+      typeof e.status === "number"
+    ) {
+      statusCode = e.status;
+    }
+
     return new Response(JSON.stringify({ error: errorMessage }), {
-      status: e.status ?? 500,
+      status: statusCode,
       headers: { "Content-Type": "application/json" },
     });
   }

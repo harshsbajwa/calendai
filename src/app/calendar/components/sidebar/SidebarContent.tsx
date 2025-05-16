@@ -34,10 +34,7 @@ import { Label } from "~/components/ui/label";
 import UpcomingEventsView from "./UpcomingEventsView";
 import SidebarFooterActions from "./SidebarFooterActions";
 import ManageCalendarsDialog from "./ManageCalendarsDialog";
-import type {
-  CalendarEvent,
-  UserCalendar as UserCalendarType,
-} from "~/app/calendar/utils/utils";
+import type { CalendarEvent } from "~/app/calendar/utils/utils";
 
 const sharedGradientButtonStyle = cn(
   "bg-gradient-to-r dark:bg-white/5 isolate bg-white/30 ring-black/5",
@@ -157,9 +154,7 @@ const SidebarContent: React.FC<SidebarContentProps> = ({
       >
         {(isExpanded || isMobile) && (
           <div className="ml-1 flex h-[40px] items-center">
-            <h1 className="dream-text text-5xl">
-              calendai
-            </h1>
+            <h1 className="dream-text text-5xl">calendai</h1>
           </div>
         )}
         <Tooltip>
@@ -367,7 +362,7 @@ const SidebarContent: React.FC<SidebarContentProps> = ({
                 <div
                   key={cal.id}
                   className="hover:bg-accent flex cursor-pointer items-center gap-2.5 rounded px-1.5 py-1.5"
-                  onClick={(e) => e.stopPropagation()} // Allows clicking checkbox without toggling sidebar
+                  onClick={(e) => e.stopPropagation()}
                   role="group"
                 >
                   <Checkbox

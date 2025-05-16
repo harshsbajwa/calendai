@@ -42,6 +42,7 @@ const Input = React.forwardRef<
   );
 
   if (as === "textarea") {
+    // eslint-disable-next-line @typescript-eslint/no-unused-vars
     const { as: _, ...rest } = props as TextareaElementSpecificProps;
     return (
       <textarea
@@ -53,6 +54,7 @@ const Input = React.forwardRef<
     );
   }
 
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
   const { as: _, ...rest } = props as InputElementSpecificProps;
   return (
     <input

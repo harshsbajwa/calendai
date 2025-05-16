@@ -1,8 +1,8 @@
 import { useState, useCallback, useEffect, useRef } from "react";
-import { agendaPanelCollapsedWidth } from "~/app/calendar/utils/utils";
+import { chatPanelCollapsedWidth } from "~/app/calendar/utils/utils";
 
 const agendaCollapsedWidthPixels =
-  parseInt(agendaPanelCollapsedWidth.replace("w-", "")) * 4;
+  parseInt(chatPanelCollapsedWidth.replace("w-", "")) * 4;
 
 export function useResizablePanels(
   initialMainPanelWidthPercent = 60,

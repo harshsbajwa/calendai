@@ -66,16 +66,14 @@ export const eventRouter = createTRPCRouter({
         let defaultCalendar = await ctx.db.userCalendar.findFirst({
           where: { userId: ctx.session.user.id, name: "My Calendar" }, // Or your default name logic
         });
-        if (!defaultCalendar) {
-          defaultCalendar = await ctx.db.userCalendar.create({
-            data: {
-              name: "My Calendar",
-              userId: ctx.session.user.id,
-              color: "bg-blue-600", // Default color
-              isVisible: true,
-            },
-          });
-        }
+        defaultCalendar ??= await ctx.db.userCalendar.create({
+          data: {
+            name: "My Calendar",
+            userId: ctx.session.user.id,
+            color: "bg-blue-600",
+            isVisible: true,
+          },
+        });
         input.userCalendarId = defaultCalendar.id;
       }
 

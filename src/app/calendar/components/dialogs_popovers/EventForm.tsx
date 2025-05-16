@@ -1,7 +1,7 @@
 "use client";
 
 import React, { useState, useEffect, useMemo } from "react";
-import { format, parse, add, isAfter, parseISO } from "date-fns";
+import { format, parse, add, isAfter, parseISO, isValid } from "date-fns";
 import { cn } from "~/lib/utils";
 import { Button } from "~/components/ui/button";
 import { Input } from "~/components/ui/input";
@@ -96,26 +96,46 @@ const EventForm: React.FC<EventFormProps> = ({
     } else if (defaultDate || defaultStartTime) {
       const baseDate = defaultStartTime ?? defaultDate ?? new Date();
       setStartDateString(format(baseDate, "yyyy-MM-dd"));
-      const baseTime = defaultStartTime ?? add(baseDate, { hours: 1 });
+      const baseTime =
+        defaultStartTime ??
+        add(baseDate, {
+          hours: new Date().getHours(),
+          minutes: new Date().getMinutes(),
+        }); // Use current time if only date given
       const sTime = format(baseTime, "HH:mm");
       setStartTime(sTime);
       setEndTime(
         format(add(parse(sTime, "HH:mm", baseDate), { hours: 1 }), "HH:mm"),
       );
       setTitle("");
+      // Reset other fields if needed
+      setDescription("");
+      setLocation("");
+      setSelectedColor(colorOptions[0]?.value ?? "bg-blue-600");
+      setSelectedUserCalendarId(userCalendars?.[0]?.id);
     }
   }, [event, defaultDate, defaultStartTime, userCalendars]);
 
-  // Auto-adjust end time if start time changes
   useEffect(() => {
     try {
       const parsedStartDate = parseISO(startDateString);
+      if (!isValid(parsedStartDate)) {
+        return; // Don't proceed if date string is invalid
+      }
       const parsedStartTime = parse(startTime, "HH:mm", parsedStartDate);
       const parsedEndTime = parse(endTime, "HH:mm", parsedStartDate);
+
+      if (!isValid(parsedStartTime) || !isValid(parsedEndTime)) {
+        return; // Don't proceed if time strings are invalid
+      }
+
       if (!isAfter(parsedEndTime, parsedStartTime)) {
         setEndTime(format(add(parsedStartTime, { hours: 1 }), "HH:mm"));
       }
-    } catch (_) {}
+      // eslint-disable-next-line @typescript-eslint/no-unused-vars
+    } catch (_error) {
+      /* Silently catch parsing errors during input */
+    }
   }, [startTime, endTime, startDateString]);
 
   const getCombinedDateTime = (
@@ -124,9 +144,11 @@ const EventForm: React.FC<EventFormProps> = ({
   ): Date | null => {
     if (!dateStr || !timeStr) return null;
     try {
-      const dt = parseISO(`${dateStr}T${timeStr}:00`);
+      const isoDateTimeStr = `${dateStr}T${timeStr.includes(":") ? timeStr : timeStr + ":00"}`;
+      const dt = parseISO(isoDateTimeStr);
       return isNaN(dt.getTime()) ? null : dt;
-    } catch (_e) {
+      // eslint-disable-next-line @typescript-eslint/no-unused-vars
+    } catch (_error) {
       return null;
     }
   };
@@ -152,7 +174,9 @@ const EventForm: React.FC<EventFormProps> = ({
     const finalEndTime = getCombinedDateTime(startDateString, endTime);
 
     if (!finalStartTime || !finalEndTime) {
-      setFormError("Invalid date or time value.");
+      setFormError(
+        "Invalid date or time value. Please ensure date and time are correctly entered.",
+      );
       return;
     }
     if (!isAfter(finalEndTime, finalStartTime)) {
@@ -250,7 +274,6 @@ const EventForm: React.FC<EventFormProps> = ({
             onChange={(e) => setEndTime(e.target.value)}
             required
             className="bg-background dark:bg-input/30 dark:[color-scheme:dark]"
-            min={startTime}
           />
         </div>
       </div>

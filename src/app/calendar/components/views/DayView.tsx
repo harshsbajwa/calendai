@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useRef, useMemo, useEffect, useState } from "react";
+import React, { useRef, useMemo, useEffect } from "react";
 import {
   format,
   getHours,
@@ -110,7 +110,7 @@ const DayView: React.FC<DayViewProps> = ({
   };
 
   const handleDragScroll = (
-    event: MouseEvent | TouchEvent | PointerEvent,
+    _event: MouseEvent | TouchEvent | PointerEvent,
     info: PanInfo,
   ) => {
     if (!containerRef.current) return;
@@ -134,7 +134,7 @@ const DayView: React.FC<DayViewProps> = ({
     stopScrolling();
     if (
       !isDesktop ||
-      calendarEvent.id?.startsWith("temp-") ||
+      calendarEvent.id?.startsWith("temp-") || // Do not update temporary events
       dragStartInitialTopRef.current === null
     ) {
       dragStartInitialTopRef.current = null;
@@ -142,36 +142,35 @@ const DayView: React.FC<DayViewProps> = ({
     }
 
     const initialTopPixels = dragStartInitialTopRef.current;
-    dragStartInitialTopRef.current = null;
+    dragStartInitialTopRef.current = null; // Reset for next drag
 
     const finalTopPixels = initialTopPixels + info.offset.y;
     const durationMinutes = differenceInMinutes(
       calendarEvent.endTime,
       calendarEvent.startTime,
     );
+    // Ensure a minimum visual duration for height calculation to avoid division by zero or tiny heights
     const minVisualDurationForHeightCalc = Math.max(15, durationMinutes);
     const eventHeightPixels =
       (minVisualDurationForHeightCalc / 60) * hourHeight;
     const maxPossibleTopPixels = hours.length * hourHeight - eventHeightPixels;
 
-    let snappedTop = Math.round(finalTopPixels / hourHeight) * hourHeight;
+    let snappedTop =
+      Math.round(finalTopPixels / (hourHeight / 4)) * (hourHeight / 4); // Snap to 15-min intervals
     snappedTop = Math.max(0, Math.min(snappedTop, maxPossibleTopPixels));
 
-    const targetHourIndex = Math.max(
-      0,
-      Math.min(23, Math.round(snappedTop / hourHeight)),
-    );
-
-    let newStartTime = setMinutes(setHours(dayStart, targetHourIndex), 0);
+    const minutesFromDayStart = (snappedTop / hourHeight) * 60;
+    let newStartTime = addMinutes(dayStart, minutesFromDayStart);
     let newEndTime = addMinutes(newStartTime, durationMinutes);
 
     if (isAfter(newEndTime, dayEnd)) {
       newEndTime = dayEnd;
       newStartTime = addMinutes(dayEnd, -durationMinutes);
       if (isBefore(newStartTime, dayStart)) {
+        // Double check if pulling back made it too early
         newStartTime = dayStart;
         newEndTime = addMinutes(dayStart, durationMinutes);
-        if (isAfter(newEndTime, dayEnd)) newEndTime = dayEnd;
+        if (isAfter(newEndTime, dayEnd)) newEndTime = dayEnd; // Final clamp for all-day events
       }
     }
 
@@ -181,7 +180,7 @@ const DayView: React.FC<DayViewProps> = ({
         newEndTime,
         calendarEventId: calendarEvent.id,
       });
-      void utils.event.getAllByUser.invalidate();
+      void utils.event.getAllByUser.invalidate(); // Revert optimistic updates
       return;
     }
 
@@ -195,6 +194,7 @@ const DayView: React.FC<DayViewProps> = ({
         endTime: newEndTime,
       });
     } else {
+      // If no change, still invalidate to ensure UI consistency if there was a race condition or minor pixel diff
       void utils.event.getAllByUser.invalidate();
     }
   };
@@ -206,22 +206,28 @@ const DayView: React.FC<DayViewProps> = ({
     let scrollTop: number;
     if (isToday(currentDate)) {
       const currentMinute = getHours(now) * 60 + getMinutes(now);
-      scrollTop = Math.max(0, (currentMinute - 30) / 60) * hourHeight;
+      scrollTop = Math.max(0, (currentMinute - 30) / 60) * hourHeight; // Scroll to 30 mins before current time
     } else {
-      scrollTop = 8 * hourHeight;
+      scrollTop = 8 * hourHeight; // Scroll to 8 AM for other days
     }
     requestAnimationFrame(() => {
+      // Ensure layout is stable before scrolling
       container.scrollTop = scrollTop;
     });
-  }, [currentDate]);
+  }, [currentDate]); // Rerun when currentDate changes
 
   const handleLocalGridClick = (
     hourDateTime: Date,
     e: React.MouseEvent<HTMLDivElement>,
   ) => {
+    const rect = e.currentTarget.getBoundingClientRect();
+    const offsetY = e.clientY - rect.top;
+    const minutesInHour = Math.floor((offsetY / hourHeight) * 60);
+    const preciseMinutes = Math.round(minutesInHour / 15) * 15;
+
     const clickedTime = setMinutes(
       setHours(startOfDay(currentDate), getHours(hourDateTime)),
-      0,
+      preciseMinutes,
     );
     onGridClick(clickedTime, e.currentTarget);
   };
@@ -255,7 +261,7 @@ const DayView: React.FC<DayViewProps> = ({
                 className="relative flex items-start justify-end pr-2 text-right text-xs md:text-sm"
                 style={{ height: `${hourHeight}px` }}
               >
-                {hourIndex !== 0 && (
+                {hourIndex !== 0 && ( // Don't show 12 AM label at the very top
                   <span className="text-muted-foreground absolute top-0 -translate-x-1 -translate-y-1/2 transform whitespace-nowrap">
                     {format(hour, "h a").toUpperCase()}
                   </span>
@@ -267,6 +273,7 @@ const DayView: React.FC<DayViewProps> = ({
             className="border-border/50 dark:border-dark-border/50 relative border-l"
             style={{ minHeight: `${hours.length * hourHeight}px` }}
           >
+            {/* Hour Slots for Clicks and Visuals */}
             {hours.map((hourDateTime, hourIndex) => (
               <div
                 key={`hour-slot-${hourIndex}`}
@@ -280,11 +287,13 @@ const DayView: React.FC<DayViewProps> = ({
                     : `View hour ${format(hourDateTime, "h a")}`
                 }
               >
+                {/* Optional subtle lines for quarter/half hours */}
                 <div className="bg-border/10 dark:bg-dark-border/5 absolute top-[25%] left-0 h-px w-full opacity-50"></div>
                 <div className="bg-border/20 dark:bg-dark-border/10 absolute top-[50%] left-0 h-px w-full opacity-50"></div>
                 <div className="bg-border/10 dark:bg-dark-border/5 absolute top-[75%] left-0 h-px w-full opacity-50"></div>
               </div>
             ))}
+            {/* Event Rendering */}
             {allVisibleEvents.map((event) => {
               const safeEvent = {
                 ...event,
@@ -333,7 +342,7 @@ const DayView: React.FC<DayViewProps> = ({
                   }}
                   dragElastic={0.01}
                   dragMomentum={false}
-                  onDragStart={(e, info) => {
+                  onDragStart={(_e, _info) => {
                     const initialMinutesFromDayStart = differenceInMinutes(
                       safeEvent.startTime,
                       dayStart,
@@ -351,10 +360,10 @@ const DayView: React.FC<DayViewProps> = ({
                   dragTransition={{
                     power: 0.2,
                     modifyTarget: (targetY) =>
-                      Math.round(targetY / hourHeight) * hourHeight,
+                      Math.round(targetY / (hourHeight / 4)) * (hourHeight / 4),
                     bounceStiffness: 1000,
                     bounceDamping: 80,
-                  }} // Stiff bounce
+                  }} // Stiff bounce, snap to 15min
                 >
                   <Tooltip delayDuration={300}>
                     <TooltipTrigger asChild>
@@ -373,9 +382,9 @@ const DayView: React.FC<DayViewProps> = ({
                             "pointer-events-none border-2 border-dashed border-white/50 opacity-70",
                         )}
                         style={{ transformStyle: "preserve-3d" }}
-                        onClick={(e) =>
+                        onClick={(_e) =>
                           !isTemporary &&
-                          onEventClick(safeEvent, e.currentTarget)
+                          onEventClick(safeEvent, _e.currentTarget)
                         }
                         aria-label={
                           isTemporary

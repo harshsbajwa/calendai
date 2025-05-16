@@ -21,8 +21,11 @@ export const timeGutterWidthPixels = 4.5 * 16;
 
 export const sidebarCollapsedWidth = "w-16";
 export const sidebarExpandedWidth = "md:w-64";
-export const agendaPanelExpandedWidth = "md:w-120";
-export const agendaPanelCollapsedWidth = "w-16";
+export const sidebarHoverWidth = "md:w-20";
+
+export const chatPanelCollapsedWidth = "w-16";
+export const chatPanelHoverWidth = "w-20";
+export const chatPanelExpandedWidth = "md:w-120"; // Max width, resizable
 
 export const colorOptions = [
   { value: "bg-blue-600", label: "Blue", twClass: "blue-600" },
@@ -83,6 +86,7 @@ export const calculateEventPositionAndHeightForDay = (
     effectiveStartTime,
     columnDayStart,
   );
+
   let endOffsetMinutes = differenceInMinutes(effectiveEndTime, columnDayStart);
 
   if (
