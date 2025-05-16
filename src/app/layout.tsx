@@ -4,6 +4,9 @@ import { type Metadata } from "next";
 import { Geist } from "next/font/google";
 import { SessionProvider } from "next-auth/react";
 
+import { Analytics } from "@vercel/analytics/next"
+import { SpeedInsights } from "@vercel/speed-insights/next"
+
 import { TRPCReactProvider } from "~/trpc/react";
 import ThemeProvider from "~/theme/theme-provider";
 
@@ -57,7 +60,11 @@ export default function RootLayout({
             enableSystem
             disableTransitionOnChange
           >
-            <TRPCReactProvider>{children}</TRPCReactProvider>
+            <TRPCReactProvider>
+              {children}
+              <Analytics />
+              <SpeedInsights />
+            </TRPCReactProvider>
           </ThemeProvider>
         </SessionProvider>
       </body>
